@@ -1,0 +1,137 @@
+\chapter{Annexe A — Référence API REST}
+\label{ann:api}
+
+Préfixe commun : \texttt{/api/v1}. Authentification : \texttt{Authorization: Bearer <jeton>} sauf connexion.
+
+\section{Auth}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{@{}llp{6cm}@{}}
+    \toprule
+    \textbf{Méthode} & \textbf{Chemin} & \textbf{Corps / réponse} \\
+    \midrule
+    POST & \texttt{/auth/connexion} & JSON \texttt{\{email, mot\_de\_passe\}} → \texttt{\{jeton\_acces\}} \\
+    GET & \texttt{/auth/moi} & Profil utilisateur courant \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Catégories}
+
+CRUD standard : \texttt{GET/POST /categories}, \texttt{GET/PUT/DELETE /categories/\{id\}}. DELETE réservé admin.
+
+\section{Produits}
+
+\texttt{GET /produits}, \texttt{GET /produits/alertes}, \texttt{POST /produits}, \texttt{GET/PUT/DELETE /produits/\{id\}}.
+
+Champs création : \texttt{nom}, \texttt{reference\_sku}, \texttt{quantite}, \texttt{seuil\_alerte}, \texttt{id\_categorie}.
+
+\section{Mouvements}
+
+\texttt{GET /mouvements}, \texttt{POST /mouvements} avec \texttt{type\_mouvement} (\texttt{entree}|\texttt{sortie}), \texttt{quantite}, \texttt{id\_produit}, \texttt{motif} optionnel.
+
+Erreur métier : \texttt{400} \texttt{stock\_insuffisant}.
+
+\section{Tableau de bord}
+
+\texttt{GET /tableau-de-bord} — JSON avec compteurs et liste \texttt{produits\_alerte}.
+
+\section{Exports}
+
+\texttt{POST /exports/produits-csv} — admin uniquement, retourne informations sur l'objet S3 créé.
+
+\section{Santé et métriques}
+
+\texttt{GET /health} — \texttt{\{"statut":"ok"\}} (ou équivalent).
+
+\texttt{GET /metrics} — format Prometheus texte.
+
+\section{Exemples de payloads JSON}
+
+\subsection{Connexion}
+
+Requête :
+\begin{lstlisting}[language=Python]
+POST /api/v1/auth/connexion
+{"email": "admin@stock.tn", "mot_de_passe": "Admin123!"}
+\end{lstlisting}
+
+Réponse \texttt{200} :
+\begin{lstlisting}[language=Python]
+{"jeton_acces": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+\end{lstlisting}
+
+\subsection{Création de produit}
+
+\begin{lstlisting}[language=Python]
+POST /api/v1/produits
+{
+  "nom": "Clavier mécanique",
+  "reference_sku": "KB-MECH-01",
+  "quantite": 25,
+  "seuil_alerte": 5,
+  "id_categorie": 1
+}
+\end{lstlisting}
+
+\subsection{Mouvement de sortie}
+
+\begin{lstlisting}[language=Python]
+POST /api/v1/mouvements
+{
+  "type_mouvement": "sortie",
+  "quantite": 3,
+  "id_produit": 2,
+  "motif": "Vente comptoir"
+}
+\end{lstlisting}
+
+\subsection{Tableau de bord (extrait de réponse)}
+
+\begin{lstlisting}[language=Python]
+{
+  "nombre_produits": 12,
+  "nombre_categories": 4,
+  "nombre_mouvements": 28,
+  "nombre_alertes": 2,
+  "produits_alerte": [ ... ]
+}
+\end{lstlisting}
+
+\section{Codes d'erreur HTTP courants}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Erreurs API typiques}
+  \label{tab:api-errors}
+  \small
+  \begin{tabular}{@{}clp{7cm}@{}}
+    \toprule
+    \textbf{Code} & \textbf{detail} & \textbf{Contexte} \\
+    \midrule
+    401 & \texttt{jeton\_invalide} / non authentifié & Jeton absent, expiré ou signature incorrecte \\
+    403 & accès refusé & Rôle insuffisant (ex.\ export admin) \\
+    404 & \texttt{produit\_introuvable} & ID produit inexistant \\
+    400 & \texttt{stock\_insuffisant} & Sortie dépassant le stock disponible \\
+    422 & validation Pydantic & Corps JSON mal formé ou champs manquants \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Exemples cURL (mode Compose)}
+
+Avec l'API sur \texttt{localhost:8000} et un jeton dans la variable \texttt{\$TOKEN} :
+
+\begin{lstlisting}[style=bash]
+curl -s http://localhost:8000/health
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/tableau-de-bord | jq
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type_mouvement":"entree","quantite":10,"id_produit":1}' \
+  http://localhost:8000/api/v1/mouvements
+\end{lstlisting}
+
+En mode cluster, remplacer l'hôte par \texttt{http://localhost/api/v1/...} (préfixe Ingress).

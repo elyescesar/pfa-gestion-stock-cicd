@@ -1,0 +1,152 @@
+\chapter{Backend — API FastAPI}
+\label{ch:backend}
+
+\section{Stack et organisation du code}
+
+Le backend est implémenté en \textbf{Python 3.12} avec \textbf{FastAPI 0.15}. Les dépendances principales figurent dans \texttt{backend/requirements.txt} : SQLAlchemy~2, Alembic, Pydantic Settings, \texttt{python-jose}, \texttt{passlib}/bcrypt, \texttt{prometheus-fastapi-instrumentator}, boto3.
+
+L'arborescence \texttt{backend/app/} suit une séparation routes / schémas / modèles / services :
+
+\begin{itemize}
+  \item \texttt{modeles/} — entités SQLAlchemy ;
+  \item \texttt{schemas/} — modèles Pydantic entrée/sortie ;
+  \item \texttt{routes/} — routeurs FastAPI par domaine ;
+  \item \texttt{securite/} — JWT et hachage des mots de passe ;
+  \item \texttt{services/} — logique métier (stock, export S3).
+\end{itemize}
+
+Le point d'entrée \texttt{main.py} instancie l'application, configure CORS, monte les routeurs sous le préfixe \texttt{/api/v1}, expose \texttt{/health} et instrumente \texttt{/metrics}.
+
+\section{Configuration}
+
+La classe \texttt{Parametres} (\texttt{config.py}) charge les variables d'environnement via \texttt{pydantic-settings} : \texttt{DATABASE\_URL}, \texttt{SECRET\_JWT}, \texttt{CORS\_ORIGINS}, paramètres AWS/LocalStack, durée du jeton JWT, algorithme HS256.
+
+En mode test (\texttt{MODE\_TEST=1}), le cycle de vie de l'application ne crée pas les tables ni n'exécute le seed global : les tests utilisent une base SQLite en mémoire avec fixtures dédiées (\texttt{tests/conftest.py}).
+
+\section{Modèle de domaine}
+
+\subsection{Entités}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Tables relationnelles}
+  \label{tab:tables}
+  \begin{tabular}{@{}llp{6.5cm}@{}}
+    \toprule
+    \textbf{Table} & \textbf{Clés} & \textbf{Attributs notables} \\
+    \midrule
+    \texttt{categorie} & PK \texttt{id} & \texttt{nom} unique, \texttt{description} nullable \\
+    \texttt{utilisateur} & PK \texttt{id} & \texttt{email} unique, \texttt{mot\_de\_passe\_hash}, \texttt{role} \\
+    \texttt{produit} & PK, FK \texttt{id\_categorie} & \texttt{reference\_sku} unique, \texttt{quantite}, \texttt{seuil\_alerte} \\
+    \texttt{mouvement} & PK, FK produit + utilisateur & \texttt{type\_mouvement}, \texttt{quantite}, \texttt{motif}, \texttt{date\_mouvement} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Diagramme entité-association}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+    entity/.style={draw, thick, minimum width=2.6cm, minimum height=1.1cm, align=center, font=\small}
+  ]
+    \node[entity, fill=green!10] (cat) {categorie};
+    \node[entity, fill=green!10, right=2.8cm of cat] (prod) {produit};
+    \node[entity, fill=blue!10, below=1.6cm of prod] (mov) {mouvement};
+    \node[entity, fill=orange!10, left=2.8cm of mov] (usr) {utilisateur};
+
+    \draw[-{Stealth}] (cat) -- node[above, font=\footnotesize]{1,N} (prod);
+    \draw[-{Stealth}] (prod) -- node[right, font=\footnotesize]{1,N} (mov);
+    \draw[-{Stealth}] (usr) -- node[below, font=\footnotesize]{1,N} (mov);
+  \end{tikzpicture}
+  \caption{Modèle de données simplifié}
+  \label{fig:er}
+\end{figure}
+
+\section{Sécurité et authentification}
+
+Les mots de passe ne sont jamais stockés en clair : \texttt{mots\_de\_passe.py} utilise bcrypt. Le module JWT (\texttt{securite/jwt.py}) :
+
+\begin{lstlisting}[language=Python,caption={Émission et validation JWT (extrait)}]
+def creer_jeton_acces(donnees: dict) -> str:
+    expiration = datetime.now(timezone.utc) + timedelta(
+        minutes=parametres.duree_token_minutes)
+    charge = donnees.copy()
+    charge.update({"exp": expiration})
+    return jwt.encode(charge, parametres.secret_jwt,
+                     algorithm=parametres.algorithme_jwt)
+\end{lstlisting}
+
+La dépendance \texttt{obtenir\_utilisateur\_courant} décode le jeton, extrait \texttt{sub} (email), charge l'utilisateur en base ou renvoie \texttt{401 jeton\_invalide}.
+
+\section{Logique métier des mouvements}
+
+Le cœur métier réside dans \texttt{services/gestion\_stock.py}. L'algorithme :
+
+\begin{enumerate}
+  \item Charger le produit par \texttt{id\_produit} ; 404 si absent.
+  \item Calculer \texttt{nouvelle\_quantite} : addition pour \texttt{entree}, soustraction pour \texttt{sortie}.
+  \item Si \texttt{nouvelle\_quantite < 0}, lever \texttt{HTTP 400} avec \texttt{detail=stock\_insuffisant}.
+  \item Créer l'enregistrement \texttt{Mouvement}, mettre à jour \texttt{produit.quantite}, \texttt{commit}.
+\end{enumerate}
+
+\begin{lstlisting}[language=Python,caption={Création d'un mouvement (extrait)}]
+def creer_mouvement(session, donnees, id_utilisateur):
+    produit = session.query(Produit).filter(
+        Produit.id == donnees.id_produit).first()
+    if produit is None:
+        raise HTTPException(status_code=404, detail="produit_introuvable")
+    nouvelle_quantite = calculer_quantite_apres_mouvement(
+        produit.quantite, donnees.type_mouvement, donnees.quantite)
+    if nouvelle_quantite < 0:
+        raise HTTPException(status_code=400, detail="stock_insuffisant")
+    # ... commit mouvement + mise à jour produit
+\end{lstlisting}
+
+\section{Surface API REST}
+
+Tous les endpoints métier sont préfixés par \texttt{/api/v1}. Le tableau~\ref{tab:api-resume} résume les routes ; l'annexe~\ref{ann:api} détaille les payloads.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Résumé des endpoints}
+  \label{tab:api-resume}
+  \small
+  \begin{tabular}{@{}lllp{4.8cm}@{}}
+    \toprule
+    \textbf{Méthode} & \textbf{Chemins} & \textbf{Auth} & \textbf{Rôle} \\
+    \midrule
+    POST & \texttt{/auth/connexion} & Non & Émet JWT \\
+    GET & \texttt{/auth/moi} & Oui & Profil \\
+    CRUD & \texttt{/categories} & Oui & DELETE admin \\
+    CRUD & \texttt{/produits} & Oui & DELETE admin \\
+    GET & \texttt{/produits/alertes} & Oui & Sous seuil \\
+    GET/POST & \texttt{/mouvements} & Oui & Historique / création \\
+    GET & \texttt{/tableau-de-bord} & Oui & Agrégats \\
+    POST & \texttt{/exports/produits-csv} & Admin & Export S3 \\
+    GET & \texttt{/health}, \texttt{/metrics} & Non & Sonde / Prometheus \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Export S3}
+
+\texttt{services/export\_s3.py} génère un CSV des produits en mémoire et l'envoie via boto3 vers le bucket configuré (\texttt{pfa-stock-exports}). Le client boto3 utilise \texttt{AWS\_ENDPOINT\_URL} pour cibler LocalStack en local. L'endpoint \texttt{POST /exports/produits-csv} vérifie le rôle administrateur avant exécution.
+
+\section{Initialisation des données}
+
+\texttt{seed.py} peuple la base au premier démarrage (hors tests) : utilisateurs admin et opérateur, catégories et produits de démonstration. Cela permet une expérience immédiate après \texttt{make dev} sans script SQL manuel.
+
+\section{Migrations Alembic}
+
+Le répertoire \texttt{alembic/versions/} contient la migration initiale \texttt{001\_initial.py} qui crée les quatre tables. \texttt{alembic/env.py} importe tous les modèles pour alimenter \texttt{target\_metadata}. En exploitation courante, \texttt{Base.metadata.create\_all} au démarrage assure la présence du schéma ; Alembic reste la référence versionnée pour audits et évolutions futures.
+
+\section{Conteneurisation de l'API}
+
+Le \texttt{backend/Dockerfile} utilise \texttt{python:3.12-slim}, installe \texttt{libpq-dev} pour psycopg2, copie \texttt{requirements.txt} puis le code, expose le port 8000 et lance :
+
+\begin{lstlisting}[style=bash]
+uvicorn app.main:application --host 0.0.0.0 --port 8000
+\end{lstlisting}
+
+Les sondes Kubernetes (startup et liveness) ciblent \texttt{GET /health} sur le port 8000 (définies dans le template Helm \texttt{api.yaml}).

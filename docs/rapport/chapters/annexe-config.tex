@@ -1,0 +1,53 @@
+\chapter{Annexe B — Configuration et versions}
+\label{ann:config}
+
+\section{Variables d'environnement (\texttt{.env.example})}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Variables d'environnement principales}
+  \small
+  \begin{tabular}{@{}lp{9cm}@{}}
+    \toprule
+    \textbf{Variable} & \textbf{Description} \\
+    \midrule
+    \texttt{DATABASE\_URL} & URL SQLAlchemy PostgreSQL \\
+    \texttt{SECRET\_JWT} & Clé signature JWT \\
+    \texttt{CORS\_ORIGINS} & Liste séparée par virgules \\
+    \texttt{VITE\_API\_URL} & URL API pour build frontend \\
+    \texttt{AWS\_ENDPOINT\_URL} & LocalStack ou AWS \\
+    \texttt{AWS\_ACCESS\_KEY\_ID} / \texttt{SECRET} & Credentials S3 \\
+    \texttt{S3\_BUCKET\_EXPORTS} & Nom du bucket \\
+    \texttt{POSTGRES\_*} & Paramètres PostgreSQL (Compose/Helm) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Versions d'outils (référence)}
+
+\begin{table}[htbp]
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Composant} & \textbf{Version} \\
+    \midrule
+    Python & 3.12 \\
+    Node.js & 20 \\
+    PostgreSQL & 16 \\
+    Terraform & 1.9 (image outils) \\
+    Helm chart ingress-nginx & 4.11.3 \\
+    kube-prometheus-stack & 65.5.0 \\
+    LocalStack & 3.x \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Fichiers de référence rapide}
+
+\begin{itemize}
+  \item Workflow CI : \texttt{.github/workflows/ci.yml}
+  \item Compose dev : \texttt{docker/compose.dev.yml}
+  \item Chart : \texttt{helm/pfa-stock/values.yaml}
+  \item Terraform : \texttt{infrastructure/terraform/}
+  \item Dashboard : \texttt{monitoring/dashboards/pfa-stock-api.json}
+\end{itemize}

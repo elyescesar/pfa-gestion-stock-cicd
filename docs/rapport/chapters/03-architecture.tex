@@ -1,0 +1,132 @@
+\chapter{Architecture globale}
+\label{ch:archi}
+
+\section{Vue logique}
+
+L'architecture suit un modèle en couches classique, enrichi d'une couche d'observabilité et d'un stockage objet pour les exports. La figure~\ref{fig:archi-logique} synthétise les composants et leurs interactions.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[node distance=0.9cm and 1.2cm]
+    \node[block, cloud, minimum width=3.2cm] (nav) {Navigateur\\(utilisateur)};
+    \node[block, svc, below=of nav, minimum width=3.6cm] (web) {Frontend React\\nginx port 80};
+    \node[block, svc, below=of web, minimum width=3.6cm] (api) {API FastAPI\\port 8000};
+    \node[block, data, below left=1.1cm and 0.2cm of api, minimum width=3cm] (pg) {PostgreSQL\\16};
+    \node[block, data, below right=1.1cm and 0.2cm of api, minimum width=3cm] (s3) {S3\\(LocalStack)};
+    \node[block, infra, right=2.8cm of api, minimum width=3.2cm] (prom) {Prometheus\\Grafana};
+
+    \draw[line] (nav) -- (web);
+    \draw[line] (web) -- node[right, font=\footnotesize] {REST /api/v1} (api);
+    \draw[line] (api) -- (pg);
+    \draw[line] (api) -- (s3);
+    \draw[dashedline] (api) -- node[above, font=\footnotesize] {/metrics} (prom);
+  \end{tikzpicture}
+  \caption{Architecture logique de StockFlow}
+  \label{fig:archi-logique}
+\end{figure}
+
+\section{Deux topologies de déploiement}
+
+\subsection{Mode développement (Docker Compose)}
+
+Le fichier \texttt{docker/compose.dev.yml} définit un réseau bridge \texttt{pfa} reliant quatre services. La figure~\ref{fig:compose} illustre les dépendances et les ports publiés sur l'hôte.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[node distance=0.7cm]
+    \node[block, fill=blue!8, minimum width=2.2cm] (w) {web\\port 3000$\rightarrow$80};
+    \node[block, fill=violet!10, right=1.4cm of w, minimum width=2.2cm] (a) {api\\port 8000};
+    \node[block, fill=green!10, right=1.4cm of a, minimum width=2.2cm] (p) {postgres\\port 5432};
+    \node[block, fill=orange!12, below=1.1cm of a, minimum width=2.4cm] (ls) {localstack\\S3 port 4566};
+    \draw[line] (w) -- (a);
+    \draw[line] (a) -- (p);
+    \draw[line] (a) -- (ls);
+    \node[draw, dashed, fit=(w)(a)(p)(ls), inner sep=14pt, label={[font=\footnotesize]above={réseau \texttt{pfa}}}] {};
+  \end{tikzpicture}
+  \caption{Topologie Docker Compose (développement)}
+  \label{fig:compose}
+\end{figure}
+
+Les \emph{healthchecks} ordonnent le démarrage : PostgreSQL doit répondre à \texttt{pg\_isready} avant que l'API ne démarre ; l'API doit répondre sur \texttt{/health} avant que le conteneur web ne soit considéré prêt.
+
+\subsection{Mode cluster (kind + Helm + Terraform)}
+
+En mode cluster, un seul point d'entrée HTTP (port~80) est exposé via \textbf{ingress-nginx}. L'Ingress route le préfixe \texttt{/api} vers le Service \api{} et le reste vers \web{}. La figure~\ref{fig:k8s} représente les namespaces et les objets principaux.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[font=\small\sffamily, node distance=0.9cm and 1.4cm]
+    \node[block, infra, minimum width=3.4cm] (ing) {ingress-nginx\\port hôte 80};
+    \node[block, svc, below=of ing, minimum width=4.2cm] (app) {namespace applicatif\\Ingress, web, api, postgres, LocalStack};
+    \node[block, infra, right=of ing, minimum width=3.2cm] (mon) {monitoring\\Prometheus, Grafana};
+    \draw[line] (ing) -- (app);
+    \draw[dashedline] (app.east) -- node[above, font=\footnotesize] {métriques} (mon.west);
+  \end{tikzpicture}
+  \caption{Déploiement Kubernetes (vue simplifiée)}
+  \label{fig:k8s}
+\end{figure}
+
+Terraform crée les namespaces, le bucket S3 sur LocalStack, puis installe séquentiellement ingress-nginx, kube-prometheus-stack et le chart \texttt{pfa-stock} (dépendances \texttt{depends\_on} dans \texttt{helm.tf}).
+
+\section{Flux de données principaux}
+
+\subsection{Authentification}
+
+\begin{enumerate}
+  \item Le client envoie \texttt{POST /api/v1/auth/connexion} avec email et mot de passe.
+  \item L'API vérifie le hash bcrypt, émet un JWT (claims \texttt{sub}, \texttt{role}, expiration configurable).
+  \item Le frontend stocke le jeton dans \texttt{sessionStorage} et l'envoie sur chaque requête.
+  \item \texttt{GET /api/v1/auth/moi} permet de recharger le profil au chargement de l'application.
+\end{enumerate}
+
+\subsection{Mouvement de stock}
+
+Le service \texttt{gestion\_stock.py} encapsule la logique transactionnelle : lecture du produit, calcul de la nouvelle quantité, rejet si négatif, insertion du mouvement et commit. Ce flux est détaillé au chapitre~\ref{ch:backend}.
+
+\subsection{Observabilité}
+
+L'instrumentateur Prometheus enregistre chaque requête HTTP. En cluster, le \texttt{ServiceMonitor} du chart expose le port \texttt{http} et le chemin \texttt{/metrics} au Prometheus Operator (chapitre~\ref{ch:monitoring}).
+
+\section{Chaîne d'outillage DevOps}
+
+La figure~\ref{fig:devops-chain} situe les outils par rapport au cycle de vie du code.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[node distance=0.55cm]
+    \node[block, minimum width=2.8cm] (git) {Git / GitHub};
+    \node[block, minimum width=2.8cm, right=1.1cm of git] (ci) {GitHub Actions\\6 jobs};
+    \node[block, minimum width=2.8cm, right=1.1cm of ci] (img) {Images Docker};
+    \node[block, minimum width=2.8cm, below=1cm of img] (tf) {Terraform};
+    \node[block, minimum width=2.8cm, left=1.1cm of tf] (helm) {Helm chart};
+    \node[block, minimum width=2.8cm, left=1.1cm of helm] (k8s) {kind cluster};
+
+    \draw[line] (git) -- (ci);
+    \draw[line] (ci) -- (img);
+    \draw[line] (img) -- (helm);
+    \draw[line] (tf) -- (helm);
+    \draw[line] (helm) -- (k8s);
+  \end{tikzpicture}
+  \caption{Chaîne d'outillage (build, validation, déploiement local)}
+  \label{fig:devops-chain}
+\end{figure}
+
+\section{Choix architecturaux structurants}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Décisions architecturales et justification}
+  \label{tab:decisions-archi}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Décision} & \textbf{Justification} \\
+    \midrule
+    API stateless & Facilite le scaling horizontal des pods API ; session portée par JWT. \\
+    Frontend statique (nginx) & Réduction de la surface d'attaque et du coût runtime en cluster. \\
+    PostgreSQL relationnel & Intégrité référentielle, transactions ACID pour les mouvements. \\
+    kind + Terraform + Helm & Reproductibilité d'un environnement proche production sans cloud. \\
+    LocalStack S3 & Démonstration IaC cloud sans compte AWS. \\
+  \texttt{create\_all} + Alembic & Démarrage simple en dev ; migrations versionnées pour traçabilité du schéma. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}

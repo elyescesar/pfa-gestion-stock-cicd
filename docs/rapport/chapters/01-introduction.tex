@@ -1,0 +1,75 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+\section{Contexte et motivation}
+
+La gestion des stocks reste un besoin récurrent dans les PME, ateliers et entrepôts de taille modeste : suivre les quantités disponibles, enregistrer les entrées et sorties, anticiper les ruptures et disposer d'une vue consolidée pour la décision. Les tableurs partagés atteignent rapidement leurs limites (concurrence d'édition, absence d'API, traçabilité faible, déploiement non industrialisé).
+
+\stockflow{} répond à ce besoin par une \textbf{application web full-stack} couplée à une \textbf{chaîne DevOps reproductible} : le même dépôt source permet de développer localement, de valider automatiquement le code (CI), de déployer sur un cluster Kubernetes local (\emph{kind}) et de superviser l'API via Prometheus et Grafana. L'objectif architectural central est la \textbf{reproductibilité sans friction} : la machine hôte n'a besoin que de Docker, Make et Git ; Python, Node, Terraform et \texttt{kubectl} s'exécutent dans des conteneurs dédiés.
+
+\section{Périmètre du projet}
+
+Le périmètre fonctionnel couvre :
+\begin{itemize}
+  \item authentification par jeton JWT avec rôles \texttt{admin} et \texttt{operateur} ;
+  \item gestion des catégories et des produits (SKU, quantité, seuil d'alerte) ;
+  \item mouvements de stock (\texttt{entree} / \texttt{sortie}) avec contrôle de stock négatif ;
+  \item tableau de bord synthétique et liste des produits sous le seuil ;
+  \item export CSV des produits vers un bucket S3 (LocalStack en environnement local).
+\end{itemize}
+
+Le périmètre technique couvre :
+\begin{itemize}
+  \item API REST FastAPI et interface React (Vite, TypeScript, Tailwind) ;
+  \item persistance PostgreSQL~16 ;
+  \item conteneurisation Docker et orchestration Docker Compose pour le développement ;
+  \item déploiement sur cluster \textbf{kind} via chart Helm \texttt{pfa-stock} ;
+  \item provisionnement Terraform (S3 LocalStack, releases Helm) ;
+  \item stack \textbf{kube-prometheus-stack} avec dashboard Grafana versionné ;
+  \item pipeline GitHub Actions à six jobs parallèles.
+\end{itemize}
+
+\section{Organisation du dépôt}
+
+Le dépôt suit une séparation nette des responsabilités (tableau~\ref{tab:structure-depot}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Structure logique du dépôt}
+  \label{tab:structure-depot}
+  \begin{tabular}{@{}lp{9.5cm}@{}}
+    \toprule
+    \textbf{Répertoire} & \textbf{Rôle} \\
+    \midrule
+    \texttt{backend/} & API FastAPI, modèles SQLAlchemy, Alembic, tests pytest \\
+    \texttt{frontend/} & SPA React, build Vite, tests Vitest \\
+    \texttt{docker/} & Fichiers Compose (dev et outils) \\
+    \texttt{helm/pfa-stock/} & Chart Kubernetes de l'application \\
+    \texttt{infrastructure/} & Configuration kind et code Terraform \\
+    \texttt{monitoring/} & Valeurs Prometheus/Grafana et dashboard JSON \\
+    \texttt{scripts/} & Automatisation démarrage, vérification, réparation \\
+    \texttt{.github/workflows/} & Pipeline CI \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Modes d'exécution}
+
+Deux modes coexistent et répondent à des objectifs différents :
+
+\begin{description}
+  \item[\texttt{make dev}] Stack Docker Compose : frontend sur le port~3000, API sur le port~8000. Boucle de développement rapide, CORS entre origines distinctes.
+  \item[\texttt{make cluster}] Cluster kind + Terraform + Helm : application accessible sur \texttt{http://localhost} (port~80), routage Ingress unique, monitoring complet.
+\end{description}
+
+\section{Organisation du rapport}
+
+Le chapitre~\ref{ch:besoin} formalise les objectifs et les acteurs. Le chapitre~\ref{ch:archi} présente l'architecture globale et les flux principaux. Les chapitres~\ref{ch:backend} à~\ref{ch:donnees} détaillent l'application ; les chapitres~\ref{ch:docker} à~\ref{ch:terraform} l'infrastructure ; les chapitres~\ref{ch:monitoring} et~\ref{ch:cicd} l'observabilité et l'intégration continue. Le chapitre~\ref{ch:exploitation} documente l'exploitation quotidienne. Les annexes recensent l'API REST et les variables de configuration.
+
+\section{Conventions documentées}
+
+\begin{itemize}
+  \item Les chemins de fichiers sont relatifs à la racine du dépôt sauf mention contraire.
+  \item Les identifiants de démonstration (\texttt{admin@stock.tn}, etc.) sont documentés à titre opérationnel ; en production ils doivent être remplacés et stockés dans un gestionnaire de secrets.
+  \item Les captures d'écran de l'interface ne sont pas reproduites ici : le lecteur peut les générer via \texttt{make demo} ou \texttt{make demo-cluster}.
+\end{itemize}

@@ -1,0 +1,54 @@
+\begin{titlepage}
+  \thispagestyle{empty}
+
+  % Bandeau et filet décoratifs (fond clair)
+  \begin{tikzpicture}[remember picture, overlay]
+  
+    \draw[coveraccent!40, line width=0.4pt]
+      ([xshift=2.4cm, yshift=-5.8cm]current page.north west) -- ([xshift=18.5cm, yshift=-5.8cm]current page.north west);
+  \end{tikzpicture}
+
+  \vspace*{2cm}
+  \begin{center}
+    {\sffamily\fontsize{10}{12}\selectfont\color{coveraccent}\textbf{RAPPORT TECHNIQUE}\par}
+    \vspace{0.7cm}
+    {\sffamily\fontsize{38}{44}\selectfont\bfseries
+      Stock\color{coveraccent}Flow\par}
+    \vspace{0.55cm}
+    {\sffamily\Large\color{covermuted}Gestion de stock et industrialisation DevOps\par}
+    \vspace{0.35cm}
+    {\large Architecture, implémentation et chaîne d'intégration continue\par}
+  \end{center}
+
+  \vspace{1.1cm}
+
+
+  \vfill
+
+  \begin{center}
+    \begin{tikzpicture}
+      \node[
+        fill=coverpanel,
+        draw=black!12,
+        line width=0.5pt,
+        rounded corners=6pt,
+        inner xsep=1.1cm,
+        inner ysep=0.95cm,
+        text width=0.78\textwidth,
+        align=left
+      ] (card) {
+        \renewcommand{\arraystretch}{1.45}
+        \begin{tabular}{@{}>{\bfseries\color{coveraccent}}r@{\hspace{0.75cm}}p{9.4cm}@{}}
+          Auteur :        & Ghorbel Elyes \\
+          Spécialité :    & Ingénierie Cloud et Virtualisation \\
+          Établissement : & iTeam University \\
+          Dépôt :         & \url{https://github.com/elyescesar/pfa-gestion-stock-cicd} \\
+        \end{tabular}
+      };
+      \fill[coveraccent] ([xshift=0pt]card.north west) rectangle ([xshift=0.18cm]card.south west);
+    \end{tikzpicture}
+  \end{center}
+
+  \vspace{1.4cm}
+
+\end{titlepage}

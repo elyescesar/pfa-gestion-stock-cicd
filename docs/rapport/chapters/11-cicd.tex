@@ -1,0 +1,158 @@
+\chapter{Intégration continue — GitHub Actions}
+\label{ch:cicd}
+
+\section{Principes}
+
+La CI (\emph{Continuous Integration}) valide chaque modification avant intégration sur \texttt{main} ou \texttt{develop}. Le workflow \texttt{.github/workflows/ci.yml} lance \textbf{six jobs indépendants} sur des runners Ubuntu — feedback parallèle, périmètres isolés. Aucun secret cloud n'est requis : les jobs s'appuient uniquement sur les actions officielles GitHub, Docker et Hashicorp.
+
+\section{Déclencheurs}
+
+\begin{itemize}
+  \item \texttt{push} sur branches \texttt{main} et \texttt{develop} ;
+  \item \texttt{pull\_request} ciblant \texttt{main}.
+\end{itemize}
+
+Aucun déploiement automatique (pas de CD) : les images buildées ne sont pas poussées vers un registry ; Terraform n'est pas appliqué sur GitHub.
+
+\section{Vue d'ensemble}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[node distance=0.45cm]
+    \node[block, fill=gray!15, minimum width=11cm, minimum height=1.1cm] (trig) at (0,0) {push / pull\_request};
+    \node[block, fill=blue!10, minimum width=3.2cm] (b) at (-4,-1.5) {backend\\ruff+pytest};
+    \node[block, fill=teal!10, minimum width=3.2cm] (f) at (0,-1.5) {frontend\\eslint+vitest};
+    \node[block, fill=violet!10, minimum width=3.2cm] (d) at (4,-1.5) {docker\\build×2};
+    \node[block, fill=orange!12, minimum width=3.2cm] (t) at (-4,-3.1) {terraform\\fmt+validate};
+    \node[block, fill=red!8, minimum width=3.2cm] (h) at (0,-3.1) {helm\\lint+template};
+    \node[block, fill=green!10, minimum width=3.2cm] (k) at (4,-3.1) {kubernetes\\kind+lint};
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (b.north);
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (f.north);
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (d.north);
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (t.north);
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (h.north);
+    \draw[line] (trig.south) -- ++(0,-0.25) -| (k.north);
+  \end{tikzpicture}
+  \caption{Pipeline CI — six jobs parallèles}
+  \label{fig:ci}
+\end{figure}
+
+\section{Structure du fichier workflow}
+
+Le fichier source fait 91 lignes : en-tête \texttt{on:} (déclencheurs), puis six blocs \texttt{jobs:} sans dépendances \texttt{needs:} entre eux. L'extrait suivant montre la déclaration des déclencheurs et du premier job :
+
+\begin{lstlisting}[style=yaml,caption={Extrait \texttt{.github/workflows/ci.yml}}]
+name: CI PFA Stock
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ...
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+      - run: ruff check app tests
+      - run: pytest -q
+\end{lstlisting}
+
+Cette structure « fan-out » minimise le temps de feedback : le chemin critique est celui du job le plus lent (souvent \texttt{docker} ou \texttt{kubernetes}), pas la somme de tous les jobs.
+
+\section{Job \texttt{backend}}
+
+\begin{enumerate}
+  \item Service container \texttt{postgres:16-alpine} avec healthcheck (\texttt{pg\_isready}) sur le port 5432 ;
+  \item Python 3.12, \texttt{pip install -r requirements.txt} ;
+  \item \texttt{ruff check app tests} — lint statique sans exécuter le code ;
+  \item \texttt{pytest -q} avec \texttt{DATABASE\_URL=postgresql://stock:stock@localhost:5432/stock\_db} injectée par le workflow.
+\end{enumerate}
+
+\textbf{Note importante :} les tests actuels passent par \texttt{tests/conftest.py}, qui force SQLite en mémoire lorsque \texttt{MODE\_TEST=1} (fixture de session). La variable \texttt{DATABASE\_URL} Postgres en CI est donc \emph{prête} pour de futurs tests d'intégration, mais n'est pas encore le moteur effectif des assertions pytest. Cette distinction évite de croire que la CI exécute déjà une suite Postgres complète.
+
+\section{Job \texttt{frontend}}
+
+Node 20, \texttt{npm install}, \texttt{npm run lint}, \texttt{npm test -- --run}. Valide le typage implicite via build de tests et les règles ESLint React.
+
+\section{Job \texttt{docker}}
+
+\texttt{docker/setup-buildx-action} puis :
+\begin{itemize}
+  \item \texttt{docker build -t pfa-stock-api:latest backend} ;
+  \item \texttt{docker build -t pfa-stock-web:latest --build-arg VITE\_API\_URL=http://localhost:8000 frontend}.
+\end{itemize}
+
+Garantit que les Dockerfiles restent valides sur une machine neuve.
+
+\section{Job \texttt{terraform}}
+
+Dans \texttt{infrastructure/terraform} : \texttt{init -backend=false}, \texttt{fmt -check}, \texttt{validate}. Détecte erreurs de syntaxe et formatting non standard.
+
+\section{Job \texttt{helm}}
+
+\texttt{helm lint helm/pfa-stock} et \texttt{helm template ... > /dev/null} — rendu des manifests sans déploiement.
+
+\section{Job \texttt{kubernetes}}
+
+\texttt{helm/kind-action} crée un cluster \texttt{pfa-ci} avec la même config kind que le projet, puis \texttt{helm lint} à nouveau. Vérifie la compatibilité avec un API server Kubernetes réel ; \textbf{ne déploie pas} le chart (\texttt{helm install} absent).
+
+\section{Comparaison avec \texttt{make test}}
+
+\begin{table}[htbp]
+  \centering
+  \caption{CI vs commandes locales}
+  \label{tab:ci-vs-make}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    \textbf{Vérification} & \textbf{CI} & \texttt{make test} / \texttt{make lint} \\
+    \midrule
+    pytest & Oui & Oui (conteneur api) \\
+    vitest & Oui & Oui (conteneur node) \\
+    ruff & Oui & \texttt{make lint} \\
+    eslint & Oui & Non (Makefile) \\
+    docker build & Oui & Non \\
+    terraform / helm & Oui & Non \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Matrice des actions tierces}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Actions GitHub utilisées par job}
+  \label{tab:ci-actions}
+  \small
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    \textbf{Job} & \textbf{Action} & \textbf{Rôle} \\
+    \midrule
+    backend & \texttt{actions/setup-python@v5} & Toolchain Python 3.12 \\
+    frontend & \texttt{actions/setup-node@v4} & Node 20 \\
+    docker & \texttt{docker/setup-buildx-action@v3} & BuildKit pour builds reproductibles \\
+    terraform & \texttt{hashicorp/setup-terraform@v3} & Binaire Terraform \\
+    helm & \texttt{azure/setup-helm@v4} & CLI Helm \\
+    kubernetes & \texttt{helm/kind-action@v1} & Cluster éphémère kind \\
+    tous & \texttt{actions/checkout@v4} & Clone du dépôt \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Échecs et gouvernance}
+
+Si un job échoue, le workflow est rouge. Les autres jobs terminent leur exécution (pas d'\texttt{fail-fast} global). Sur une organisation GitHub stricte, les PR peuvent exiger tous les checks verts avant merge. En local, \texttt{make lint} et \texttt{make test} reproduisent partiellement le périmètre applicatif mais pas la validation infrastructurelle.
+
+\section{Évolutions CD possibles}
+
+\begin{enumerate}
+  \item Push des images vers GHCR avec tag \texttt{\$\{github.sha\}} ;
+  \item \texttt{helm upgrade} sur un cluster staging avec ces tags ;
+  \item \texttt{terraform plan} commenté sur les PR ;
+  \item scan Trivy des images ;
+  \item tests e2e Playwright post-déploiement éphémère.
+\end{enumerate}

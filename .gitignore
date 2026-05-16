@@ -26,3 +26,5 @@ htmlcov/
 *.log
 .idea/
 .vscode/
+
+docs/ci-cd-guide-perso.md

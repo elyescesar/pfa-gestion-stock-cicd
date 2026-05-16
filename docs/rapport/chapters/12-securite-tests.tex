@@ -1,0 +1,99 @@
+\chapter{Sécurité, tests et qualité}
+\label{ch:securite}
+
+\section{Modèle de menace (périmètre local)}
+
+Le déploiement documenté cible un \textbf{environnement local de démonstration}. Les menaces principales sont : accès non autorisé à l'API, fuite de secrets dans Git, injection SQL (mitigée par ORM), et configuration CORS trop permissive.
+
+\section{Authentification et autorisation}
+
+\begin{itemize}
+  \item Mots de passe hashés bcrypt — pas de stockage clair ;
+  \item JWT signé HS256 — secret \texttt{SECRET\_JWT} injecté par variable d'environnement ou Secret K8s ;
+  \item Durée de vie configurable (\texttt{duree\_token\_minutes}) ;
+  \item Contrôles de rôle sur DELETE et export CSV (vérification \texttt{role == admin}).
+\end{itemize}
+
+\section{Secrets et configuration}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Gestion des secrets}
+  \label{tab:secrets}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Secret} & \textbf{Stockage} \\
+    \midrule
+    \texttt{SECRET\_JWT} & Secret K8s / \texttt{.env} (gitignoré) \\
+    \texttt{DATABASE\_URL} & Secret K8s (mot de passe PG inclus) \\
+    Mots de passe démo & Seed — à changer en prod \\
+    Grafana admin & \texttt{TF\_VAR\_grafana\_admin\_password} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\texttt{.env.example} documente les clés sans valeurs sensibles réelles. \texttt{.gitignore} exclut \texttt{.env}, \texttt{.kube/}, \texttt{*.tfstate}.
+
+\section{CORS}
+
+\texttt{CORS\_ORIGINS} liste les origines autorisées (frontend dev sur :3000, cluster sur \texttt{http://localhost}). En production, la liste serait restreinte au domaine client réel.
+
+\section{Réseau Kubernetes}
+
+Les Services clusterIP ne sont pas exposés sauf via Ingress (80/443). LocalStack et PostgreSQL ne sont pas publiés sur l'hôte en mode cluster (sauf port-forward manuel pour debug).
+
+\section{Tests automatisés}
+
+\subsection{Backend (pytest)}
+
+Quatre tests couvrent :
+\begin{itemize}
+  \item connexion + liste produits ;
+  \item création produit ;
+  \item entrée de stock ;
+  \item sortie refusée si stock insuffisant (\texttt{stock\_insuffisant}).
+\end{itemize}
+
+Fixtures : client FastAPI, jeton admin, base SQLite mémoire, override de \texttt{obtenir\_session}.
+
+Le fichier \texttt{conftest.py} isole chaque test :
+\begin{lstlisting}[language=Python,caption={Stratégie de test (extrait conftest)}]
+os.environ["MODE_TEST"] = "1"
+# SQLite :memory: + create_all avant chaque fonction de test
+@pytest.fixture
+def client():
+    with TestClient(application) as c:
+        yield c
+\end{lstlisting}
+
+Cette approche garantit un état vierge par test sans dépendre d'un Postgres déjà peuplé par le seed de production.
+
+\subsection{Frontend (Vitest)}
+
+Test de rendu de la page connexion avec providers Auth/Toast et MemoryRouter.
+
+\subsection{Smoke tests (\texttt{make verify})}
+
+\texttt{scripts/verifier.sh} enchaîne :
+\begin{itemize}
+  \item mode \texttt{dev} ou \texttt{cluster} ;
+  \item curl sur \texttt{/health}, login, liste produits, page web ;
+  \item en cluster : vérification pods Running.
+\end{itemize}
+
+\section{Analyse statique}
+
+\begin{itemize}
+  \item \textbf{ruff} — backend Python (CI + \texttt{make lint}) ;
+  \item \textbf{eslint} — frontend TypeScript/React (CI).
+\end{itemize}
+
+\section{Pistes de durcissement production}
+
+\begin{itemize}
+  \item TLS terminé par cert-manager + Let's Encrypt ;
+  \item rotation des secrets via External Secrets Operator ;
+  \item politiques NetworkPolicy limitant le trafic inter-pods ;
+  \item rate limiting sur l'Ingress ;
+  \item audit des dépendances (\texttt{pip audit}, \texttt{npm audit}).
+\end{itemize}

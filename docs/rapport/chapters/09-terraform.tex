@@ -1,0 +1,146 @@
+\chapter{Infrastructure as Code — Terraform}
+\label{ch:terraform}
+
+\section{Objectifs de Terraform dans StockFlow}
+
+Terraform décrit l'infrastructure de façon \textbf{déclarative} et \textbf{idempotente} : le même code peut être réappliqué pour converger vers l'état désiré. Dans ce projet, il :
+\begin{enumerate}
+  \item provisionne un bucket S3 sur LocalStack ;
+  \item installe les charts Helm ingress-nginx, kube-prometheus-stack et pfa-stock ;
+  \item publie le dashboard Grafana via ConfigMap.
+\end{enumerate}
+
+\section{Providers}
+
+\texttt{providers.tf} configure trois providers :
+
+\subsection{AWS → LocalStack}
+
+\begin{lstlisting}[caption={Provider AWS (extrait)}]
+provider "aws" {
+  access_key = "test"
+  secret_key = "test"
+  s3_use_path_style = true
+  skip_credentials_validation = true
+  endpoints { s3 = var.localstack_endpoint }
+}
+\end{lstlisting}
+
+Les flags \texttt{skip\_*} désactivent les vérifications impossibles hors AWS réel. Le endpoint S3 pointe vers LocalStack (\texttt{http://localstack:4566} depuis le conteneur Terraform en réseau host, ou hostname adapté).
+
+\subsection{Kubernetes et Helm}
+
+Le provider Kubernetes et le provider Helm utilisent \texttt{config\_path = "/root/.kube/config"} — fichier monté depuis \texttt{.kube/} du dépôt dans le conteneur \texttt{terraform} de \texttt{compose.outils.yml}.
+
+\section{Variables}
+
+\texttt{variables.tf} expose :
+\begin{itemize}
+  \item \texttt{localstack\_endpoint}, \texttt{aws\_region} ;
+  \item \texttt{s3\_bucket\_name} (défaut \texttt{pfa-stock-exports}) ;
+  \item \texttt{namespace\_app}, \texttt{namespace\_monitoring} ;
+  \item \texttt{grafana\_admin\_password} (sensible, passé en \texttt{TF\_VAR\_} ou \texttt{.env}).
+\end{itemize}
+
+\section{Ressources par fichier}
+
+\subsection{\texttt{kubernetes.tf}}
+
+Crée les namespaces \texttt{monitoring}, \texttt{ingress-nginx}, \texttt{pfa-stock} avant les releases Helm — ordre garanti et pas de double création par le chart.
+
+\subsection{\texttt{localstack.tf}}
+
+\begin{itemize}
+  \item \texttt{aws\_s3\_bucket.exports} ;
+  \item \texttt{aws\_s3\_bucket\_versioning} activé ;
+  \item output \texttt{s3\_bucket\_arn}.
+\end{itemize}
+
+\subsection{\texttt{helm.tf}}
+
+Trois \texttt{helm\_release} avec dépendances :
+
+\begin{table}[htbp]
+  \centering
+  \caption{Releases Helm gérées par Terraform}
+  \label{tab:helm-tf}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    \textbf{Ressource} & \textbf{Chart} & \textbf{Version} & \textbf{Dépend de} \\
+    \midrule
+    ingress\_nginx & ingress-nginx & 4.11.3 & namespace \\
+    kube\_prometheus & kube-prometheus-stack & 65.5.0 & ingress\_nginx \\
+    pfa\_stock & chart local & — & kube\_prometheus \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\texttt{pfa\_stock} monte le chart depuis \texttt{../../helm/pfa-stock} et fixe \texttt{monitoring.releaseLabel} via \texttt{set}.
+
+\subsection{\texttt{grafana\_dashboard.tf}}
+
+Crée une ConfigMap \texttt{grafana-dashboard-pfa-stock-api} dans le namespace monitoring, contenu = fichier JSON du dépôt, label \texttt{grafana\_dashboard=1} pour le sidecar Grafana.
+
+\section{Exécution opérationnelle}
+
+\begin{lstlisting}[style=bash]
+docker compose -f docker/compose.outils.yml run --rm terraform init
+docker compose -f docker/compose.outils.yml run --rm terraform apply
+\end{lstlisting}
+
+Le state est stocké localement (\texttt{terraform.tfstate}, gitignoré). Pas de backend distant — acceptable pour démo locale, à remplacer par S3+DynamoDB en équipe.
+
+\section{Validation en CI}
+
+Le job \texttt{terraform} exécute :
+\begin{itemize}
+  \item \texttt{terraform init -backend=false} ;
+  \item \texttt{terraform fmt -check} ;
+  \item \texttt{terraform validate}.
+\end{itemize}
+
+Aucun \texttt{apply} en CI — pas de modification d'infra sur les runners GitHub.
+
+\section{Fichiers Terraform et responsabilités}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Fichiers du répertoire \texttt{infrastructure/terraform/}}
+  \label{tab:tf-files}
+  \small
+  \begin{tabular}{@{}lp{9cm}@{}}
+    \toprule
+    \textbf{Fichier} & \textbf{Rôle} \\
+    \midrule
+    \texttt{providers.tf} & Providers AWS (LocalStack), Kubernetes, Helm \\
+    \texttt{variables.tf} & Mots de passe, bucket S3, kubeconfig \\
+    \texttt{namespaces.tf} & Namespaces créés avant les charts \\
+    \texttt{s3.tf} & Bucket d'export sur LocalStack \\
+    \texttt{helm.tf} & Releases ingress-nginx, kube-prometheus-stack, application \\
+    \texttt{grafana-dashboard.tf} & ConfigMap du dashboard JSON \\
+    \texttt{outputs.tf} & URLs et rappels post-\texttt{apply} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+L'ordre d'application respecte les \texttt{depends\_on} : namespaces, puis ingress, puis monitoring, puis l'application — le \texttt{ServiceMonitor} de l'API nécessite un Prometheus Operator déjà présent.
+
+\section{Migration vers un cloud réel}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Adaptations pour production cloud}
+  \label{tab:tf-migration}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Composant local} & \textbf{Équivalent production} \\
+    \midrule
+    LocalStack S3 & S3 AWS réel + IAM \\
+    kind & EKS, GKE ou AKS \\
+    Provider endpoints factices & Credentials IAM / IRSA \\
+    State local & Backend S3 chiffré + verrou DynamoDB \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Le code Helm et applicatif restent largement inchangés ; seuls providers, backends et values diffèrent.

@@ -1,0 +1,26 @@
+\babel@toc {french}{}\relax 
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Architecture logique de StockFlow}}{11}{figure.caption.8}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Topologie Docker Compose (développement)}}{11}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Déploiement Kubernetes (vue simplifiée)}}{12}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Chaîne d'outillage (build, validation, déploiement local)}}{13}{figure.caption.11}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Modèle de données simplifié}}{15}{figure.caption.14}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Séquence simplifiée — enregistrement d'un mouvement}}{21}{figure.caption.18}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {8.1}{\ignorespaces Routage Ingress — chemins préservés vers l'API}}{26}{figure.caption.21}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {10.1}{\ignorespaces Chemin des métriques}}{32}{figure.caption.25}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {11.1}{\ignorespaces Pipeline CI — six jobs parallèles}}{33}{figure.caption.26}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }

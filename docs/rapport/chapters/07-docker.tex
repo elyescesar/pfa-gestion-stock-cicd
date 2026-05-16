@@ -1,0 +1,98 @@
+\chapter{Conteneurisation Docker}
+\label{ch:docker}
+
+\section{Rôle de Docker dans le projet}
+
+Docker matérialise l'environnement d'exécution : mêmes versions de runtime, mêmes dépendances système, isolation des services. Deux fichiers Compose distincts évitent de mélanger le quotidien développeur et les outils d'infrastructure lourds.
+
+\section{Docker Compose — développement}
+
+\subsection{Services}
+
+Le tableau~\ref{tab:compose-services} détaille \texttt{docker/compose.dev.yml}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Services Compose (développement)}
+  \label{tab:compose-services}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    \textbf{Service} & \textbf{Image} & \textbf{Port hôte} & \textbf{Rôle} \\
+    \midrule
+    postgres & postgres:16-alpine & 5432 & Base \texttt{stock\_db} \\
+    api & build backend & 8000 & FastAPI \\
+    web & build frontend & 3000→80 & nginx + SPA \\
+    localstack & localstack:3 & 4566 & API S3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Variables d'environnement API}
+
+L'API reçoit notamment :
+\begin{itemize}
+  \item \texttt{DATABASE\_URL=postgresql://stock:stock@postgres:5432/stock\_db} ;
+  \item \texttt{SECRET\_JWT}, \texttt{CORS\_ORIGINS} incluant \texttt{http://localhost:3000} ;
+  \item \texttt{AWS\_ENDPOINT\_URL=http://localstack:4566}, bucket \texttt{pfa-stock-exports}.
+\end{itemize}
+
+\subsection{Healthchecks}
+
+\begin{itemize}
+  \item PostgreSQL : \texttt{pg\_isready} toutes les 5\,s ;
+  \item API : requête Python vers \texttt{http://localhost:8000/health} ;
+  \item \texttt{depends\_on} avec condition \texttt{service\_healthy} enchaîne postgres → api → web.
+\end{itemize}
+
+\subsection{Script de démarrage}
+
+\texttt{scripts/demarrer-dev.sh} copie \texttt{.env.example} vers \texttt{.env} si nécessaire, lance \texttt{compose up --build}, exécute \texttt{init-localstack.sh} pour créer le bucket S3.
+
+\section{Dockerfile backend}
+
+Image basée sur \texttt{python:3.12-slim} :
+\begin{itemize}
+  \item installation de \texttt{libpq-dev} et \texttt{gcc} pour compiler psycopg2 ;
+  \item couche de dépendances pip mise en cache si \texttt{requirements.txt} inchangé ;
+  \item \texttt{PYTHONPATH=/app} pour résoudre le package \texttt{app}.
+\end{itemize}
+
+\section{Dockerfile frontend}
+
+Build multi-stage (chapitre~\ref{ch:frontend}) : l'argument \texttt{VITE\_API\_URL} est figé au build. En dev Compose, \texttt{http://localhost:8000} ; en cluster, \texttt{http://localhost} pour que le navigateur appelle l'Ingress.
+
+\section{Compose outils}
+
+\texttt{docker/compose.outils.yml} sert au bootstrap cluster :
+\begin{itemize}
+  \item \textbf{localstack} — endpoint S3 pour Terraform ;
+  \item \textbf{terraform} — image \texttt{hashicorp/terraform:1.9}, volumes montés sur le repo et \texttt{.kube}, réseau host ;
+  \item \textbf{kubectl} / \textbf{helm} — CLI dans des conteneurs éphémères.
+\end{itemize}
+
+Aucune installation de Terraform ou kubectl sur l'hôte n'est requise pour \texttt{make cluster}.
+
+\section{kind et chargement d'images}
+
+Le script \texttt{demarrer-cluster.sh} :
+\begin{enumerate}
+  \item build \texttt{pfa-stock-api:latest} et \texttt{pfa-stock-web:latest} ;
+  \item crée le cluster kind avec \texttt{kind-docker.sh} (kind exécuté dans un conteneur avec accès au socket Docker) ;
+  \item exporte le kubeconfig vers \texttt{.kube/config} ;
+  \item \texttt{kind load docker-image} injecte les images locales dans le cluster (évite un registry).
+\end{enumerate}
+
+\section{Réseau et volumes}
+
+\begin{itemize}
+  \item Réseau \texttt{pfa} (bridge) — résolution DNS par nom de service ;
+  \item Volume nommé \texttt{donnees\_pg} — persistance PostgreSQL en dev entre redémarrages Compose.
+\end{itemize}
+
+\section{Bonnes pratiques appliquées}
+
+\begin{itemize}
+  \item images \texttt{alpine} ou \texttt{slim} lorsque possible ;
+  \item pas de secrets dans les Dockerfiles — injection par env / secrets K8s ;
+  \item builds reproductibles référencés en CI (job \texttt{docker}).
+\end{itemize}

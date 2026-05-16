@@ -1,0 +1,151 @@
+\chapter{Frontend — interface StockFlow}
+\label{ch:frontend}
+
+\section{Stack technique}
+
+L'interface utilisateur est une \textbf{single-page application} construite avec :
+\begin{itemize}
+  \item \textbf{React 18} et \textbf{TypeScript 5.6} ;
+  \item \textbf{Vite 6} comme bundler et serveur de développement ;
+  \item \textbf{React Router 7} pour le routage côté client ;
+  \item \textbf{Tailwind CSS 4} via le plugin \texttt{@tailwindcss/vite} ;
+  \item \textbf{lucide-react} pour l'iconographie ;
+  \item \textbf{Vitest} et React Testing Library pour les tests.
+\end{itemize}
+
+Le nom produit affiché est \stockflow{} : thème sombre, accents cyan, typographie Outfit (chargée depuis Google Fonts dans \texttt{index.html}).
+
+\section{Architecture frontale}
+
+\subsection{Organisation des sources}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Structure \texttt{frontend/src/}}
+  \label{tab:frontend-structure}
+  \begin{tabular}{@{}lp{9cm}@{}}
+    \toprule
+    \textbf{Dossier} & \textbf{Contenu} \\
+    \midrule
+    \texttt{pages/} & Une page par route métier \\
+    \texttt{composants/Layout.tsx} & Shell navigation + zone \texttt{Outlet} \\
+    \texttt{composants/ui/} & Bibliothèque de composants réutilisables \\
+    \texttt{contexte/} & Auth et toasts globaux \\
+    \texttt{hooks/useFetch.ts} & Chargement données API avec état \\
+    \texttt{services/api.ts} & Client HTTP, gestion du jeton JWT \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Routage et protection}
+
+\texttt{App.tsx} définit :
+\begin{itemize}
+  \item \texttt{/connexion} — publique ;
+  \item routes imbriquées sous \texttt{Layout} — protégées par \texttt{RoutesProtegees} qui lit \texttt{AuthContext} ;
+  \item redirection vers \texttt{/connexion} si non authentifié ;
+  \item affichage d'un chargeur pendant la vérification du jeton (\texttt{GET /auth/moi}).
+\end{itemize}
+
+\section{Client API}
+
+\texttt{services/api.ts} centralise les appels :
+\begin{itemize}
+  \item base URL depuis \texttt{import.meta.env.VITE\_API\_URL} (injectée au build Docker) ;
+  \item jeton stocké dans \texttt{sessionStorage} sous la clé \texttt{jeton\_acces} ;
+  \item fonction \texttt{appelApi<T>()} ajoutant l'en-tête \texttt{Authorization} et gérant les erreurs 401 (déconnexion implicite).
+\end{itemize}
+
+En mode cluster, le frontend est servi depuis \texttt{http://localhost} et les appels partent vers \texttt{http://localhost/api/...} via l'Ingress — d'où le build avec \texttt{VITE\_API\_URL=http://localhost}.
+
+\section{Pages fonctionnelles}
+
+\subsection{Connexion (\texttt{PageConnexion.tsx})}
+
+Formulaire email / mot de passe, valeurs préremplies en démo. Appel \texttt{POST /auth/connexion}, stockage du jeton, toast de succès, navigation vers le tableau de bord. Redirection automatique si session déjà valide.
+
+\subsection{Tableau de bord}
+
+Consomme \texttt{GET /api/v1/tableau-de-bord}. Affiche quatre cartes statistiques (produits, catégories, mouvements, alertes) et une liste des produits sous seuil avec barres de progression visuelles.
+
+\subsection{Produits}
+
+Liste filtrable (nom, SKU, catégorie), tableau avec badge d'alerte si stock bas, modal de création (POST), suppression avec confirmation (DELETE, visible au survol).
+
+\subsection{Catégories}
+
+Grille de cartes avec description tronquée, modal de création, suppression au survol.
+
+\subsection{Mouvements}
+
+Timeline verticale : entrées (vert) et sorties (rouge), date et motif. Modal pour enregistrer un mouvement (type, produit, quantité, motif optionnel).
+
+\subsection{Alertes}
+
+Cartes par produit en alerte avec jauge et pourcentage par rapport au seuil ; lien vers les mouvements pour corriger le stock.
+
+\section{Composants UI}
+
+La couche \texttt{composants/ui/} homogénéise l'interface :
+\begin{itemize}
+  \item \texttt{Bouton} — variantes primaire, secondaire, danger, fantôme ; état chargement ;
+  \item \texttt{Modal} — fermeture Escape, tailles md/lg ;
+  \item \texttt{Champ}, \texttt{Input}, \texttt{Select}, \texttt{Textarea} ;
+  \item \texttt{CarteStat}, \texttt{Badge}, \texttt{Chargeur}, \texttt{EtatVide}, \texttt{BarreRecherche}.
+\end{itemize}
+
+\section{État global}
+
+\texttt{AuthContext} expose \texttt{utilisateur}, \texttt{chargement}, \texttt{connexion}, \texttt{deconnexion}. Au montage, si un jeton existe en session, appel \texttt{/auth/moi} pour hydrater le profil.
+
+\texttt{ToastContext} permet d'afficher des notifications succès / erreur / info en bas à droite (auto-dismiss après 4 secondes).
+
+\section{Layout responsive}
+
+\texttt{Layout.tsx} combine :
+\begin{itemize}
+  \item barre latérale fixe sur grand écran (navigation, profil, déconnexion) ;
+  \item menu hamburger et tiroir sur mobile ;
+  \item animation \texttt{animate-fade-in} à chaque changement de route (\texttt{key=\{location.pathname\}}).
+\end{itemize}
+
+\section{Build et livraison}
+
+Le \texttt{frontend/Dockerfile} est multi-stage :
+\begin{enumerate}
+  \item Stage \texttt{build} : \texttt{node:20-alpine}, \texttt{npm install}, \texttt{npm run build} (TypeScript + Vite).
+  \item Stage runtime : \texttt{nginx:alpine}, copie de \texttt{dist/} et \texttt{nginx.conf}.
+\end{enumerate}
+
+\texttt{nginx.conf} configure le fallback SPA (\texttt{try\_files}) et, en Compose, un proxy \texttt{/api/} vers le service \api{} — en cluster, c'est l'Ingress qui assume ce routage.
+
+\section{Parcours utilisateur et états d'interface}
+
+Chaque page métier suit le même patron : chargement (\texttt{Chargeur}), état vide (\texttt{EtatVide}) si la liste est vide, puis contenu principal. Les actions destructives (suppression) utilisent une confirmation implicite via bouton dédié et toast d'erreur en cas d'échec API.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Pages et endpoints consommés}
+  \label{tab:frontend-pages}
+  \small
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Route} & \textbf{Endpoints principaux} \\
+    \midrule
+    \texttt{/connexion} & \texttt{POST /auth/connexion} \\
+    \texttt{/} (dashboard) & \texttt{GET /tableau-de-bord} \\
+    \texttt{/produits} & \texttt{GET/POST/DELETE /produits} \\
+    \texttt{/categories} & \texttt{GET/POST/DELETE /categories} \\
+    \texttt{/mouvements} & \texttt{GET/POST /mouvements} \\
+    \texttt{/alertes} & \texttt{GET /produits/alertes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Le hook \texttt{useFetch} encapsule le cycle \emph{chargement → données → erreur}, ce qui évite de dupliquer les \texttt{useEffect} sur chaque page.
+
+\section{Tests frontend}
+
+\texttt{App.test.tsx} vérifie le rendu du titre « Connexion » avec les fournisseurs de contexte et un \texttt{MemoryRouter}. La CI exécute \texttt{npm run lint} (ESLint) et \texttt{npm test -- --run} (Vitest).
+
+Les règles ESLint (config flat dans \texttt{eslint.config.js}) couvrent les hooks React et les imports inutilisés ; elles complètent TypeScript qui reste la première barrière de typage au build \texttt{tsc -b}.

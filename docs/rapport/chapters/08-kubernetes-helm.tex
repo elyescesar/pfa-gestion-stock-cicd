@@ -1,0 +1,131 @@
+\chapter{Kubernetes et Helm}
+\label{ch:k8s}
+
+\section{Kubernetes et kind}
+
+\subsection{Principe}
+
+\textbf{Kubernetes} orchestre des conteneurs sur un cluster : scheduling, réseau, stockage, auto-healing via sondes. \textbf{kind} (Kubernetes in Docker) instancie un cluster dont les nœuds sont des conteneurs Docker — idéal pour développement et CI sans cloud.
+
+\subsection{Configuration du cluster}
+
+\texttt{infrastructure/kubernetes/kind/cluster-config.yaml} définit :
+\begin{itemize}
+  \item cluster nommé \texttt{pfa-stock} ;
+  \item un nœud \texttt{control-plane} avec label \texttt{ingress-ready=true} ;
+  \item mapping \texttt{hostPort} 80 et 443 vers le nœud (accès \texttt{http://localhost} depuis l'hôte).
+\end{itemize}
+
+Le kubeconfig généré est stocké dans \texttt{.kube/config} (gitignoré). Toute commande \texttt{kubectl} doit utiliser :
+\begin{lstlisting}[style=bash]
+export KUBECONFIG="$(pwd)/.kube/config"
+\end{lstlisting}
+
+\section{Namespaces}
+
+Terraform crée trois namespaces (\texttt{kubernetes.tf}) :
+\begin{itemize}
+  \item \texttt{ingress-nginx} — contrôleur Ingress ;
+  \item \texttt{monitoring} — kube-prometheus-stack ;
+  \item \texttt{pfa-stock} — application métier.
+\end{itemize}
+
+Le namespace application n'est \textbf{pas} créé par le chart Helm (\texttt{create\_namespace=false}) pour éviter les conflits « already exists » lors des réapplications.
+
+\section{Chart Helm \texttt{pfa-stock}}
+
+\subsection{Métadonnées}
+
+\texttt{helm/pfa-stock/Chart.yaml} : chart version 1.0.0, application version 1.0.0.
+
+\subsection{Values principales}
+
+\texttt{values.yaml} paramètre images (\texttt{pfa-stock-api}, \texttt{pfa-stock-web}, tag \texttt{latest}), credentials PostgreSQL, Ingress host \texttt{localhost}, endpoint LocalStack in-cluster, activation du ServiceMonitor (\texttt{monitoring.enabled: true}).
+
+\subsection{Ressources déployées}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Ressources du chart \texttt{pfa-stock}}
+  \label{tab:helm-resources}
+  \small
+  \begin{tabular}{@{}llp{7.5cm}@{}}
+    \toprule
+    \textbf{Template} & \textbf{Kind} & \textbf{Détail} \\
+    \midrule
+    \texttt{postgres.yaml} & StatefulSet + Service & Volume \texttt{1Gi}, image postgres:16-alpine \\
+    \texttt{api.yaml} & Deployment + Service & Env depuis Secret/ConfigMap, probes /health, ServiceMonitor \\
+    \texttt{web.yaml} & Deployment + Service & nginx, port 80 \\
+    \texttt{localstack.yaml} & Deployment + Service & SERVICES=s3 \\
+    \texttt{secret.yaml} & Secret & JWT, mot de passe PG, DATABASE\_URL complète \\
+    \texttt{configmap.yaml} & ConfigMap & CORS, variables AWS \\
+    \texttt{ingress.yaml} & Ingress & class nginx, /api → api:8000, / → web:80 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Ingress et routage}
+
+L'Ingress \texttt{pfa-stock-ingress} utilise \texttt{ingressClassName: nginx}. Contrairement à certaines configurations initiales, \textbf{aucune annotation de rewrite} ne supprime le préfixe \texttt{/api} — l'API attend les chemins complets \texttt{/api/v1/...}.
+
+La figure~\ref{fig:ingress-routes} résume la répartition des chemins HTTP sur l'hôte \texttt{localhost} (port 80 exposé par ingress-nginx via \texttt{hostPort}).
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+    block/.style={draw, thick, rounded corners, minimum height=0.9cm, align=center, font=\small},
+    route/.style={font=\footnotesize\ttfamily}
+  ]
+    \node[block, fill=gray!12, minimum width=11cm] (ing) at (0,0) {Ingress nginx\\localhost port 80};
+    \node[block, fill=violet!12, below left=1.2cm and 0.3cm of ing, minimum width=4.2cm] (apisvc) {Service API\\port 8000};
+    \node[block, fill=blue!10, below right=1.2cm and 0.3cm of ing, minimum width=4.2cm] (websvc) {Service web\\port 80};
+    \node[route, above left=0.1cm and -0.2cm of ing] {préfixe /api};
+    \node[route, above right=0.1cm and -0.2cm of ing] {racine /};
+    \draw[-{Stealth}] (ing.south west) ++(0,-0.15) -| node[left, font=\footnotesize] {préfixe /api} (apisvc.north);
+    \draw[-{Stealth}] (ing.south east) ++(0,-0.15) -| node[right, font=\footnotesize] {racine /} (websvc.north);
+  \end{tikzpicture}
+  \caption{Routage Ingress — chemins préservés vers l'API}
+  \label{fig:ingress-routes}
+\end{figure}
+
+Le frontend est construit avec \texttt{VITE\_API\_URL=http://localhost} : les requêtes XHR ciblent donc \texttt{http://localhost/api/v1/...}, qui atteignent le pod API sans proxy nginx intermédiaire dans le pod web (contrairement au mode Compose où nginx du conteneur \texttt{web} peut proxifier \texttt{/api/}).
+
+\subsection{Sondes API}
+
+\begin{itemize}
+  \item \texttt{startupProbe} — jusqu'à 30 échecs × 5\,s pour les démarrages lents (PostgreSQL) ;
+  \item \texttt{livenessProbe} — \texttt{/health} toutes les 10\,s.
+\end{itemize}
+
+\subsection{ServiceMonitor}
+
+Si \texttt{monitoring.enabled}, le template crée un \texttt{ServiceMonitor} CRD avec label \texttt{release: kube-prometheus-stack}, endpoint \texttt{/metrics} sur le port nommé \texttt{http}, intervalle 30\,s.
+
+\section{ingress-nginx sur kind}
+
+Le fichier \texttt{infrastructure/terraform/values/ingress-nginx-kind.yaml} adapte le chart upstream :
+\begin{itemize}
+  \item Service en ClusterIP avec \texttt{hostPort} 80/443 sur le nœud ingress-ready ;
+  \item désactivation des webhooks d'admission (souvent problématiques sur kind) ;
+  \item timeout Helm porté à 600\,s lors du \texttt{helm\_release} Terraform.
+\end{itemize}
+
+\section{Cycle de déploiement manuel}
+
+Via \texttt{make cluster} (\texttt{scripts/demarrer-cluster.sh}) :
+\begin{enumerate}
+  \item LocalStack up ;
+  \item kind create + load images ;
+  \item \texttt{terraform init} et \texttt{apply} dans le conteneur outils ;
+  \item application accessible sur port 80.
+\end{enumerate}
+
+\texttt{scripts/reparer-cluster.sh} désinstalle le release applicatif et relance Terraform en cas d'état incohérent.
+
+\section{Limites du déploiement local}
+
+\begin{itemize}
+  \item un seul nœud — pas de tolérance aux pannes ;
+  \item images \texttt{IfNotPresent} / \texttt{latest} — en production on épinglerait des digests ;
+  \item secrets en clair dans values pour la démo — à externaliser en prod.
+\end{itemize}

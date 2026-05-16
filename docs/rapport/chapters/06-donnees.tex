@@ -1,0 +1,132 @@
+\chapter{Persistance et modèle de données}
+\label{ch:donnees}
+
+\section{PostgreSQL comme source de vérité}
+
+Toutes les données métier résident dans \textbf{PostgreSQL 16}. Le moteur est choisi pour :
+\begin{itemize}
+  \item les transactions ACID (mouvement + mise à jour quantité en un seul commit) ;
+  \item les contraintes d'intégrité (unicité SKU, clés étrangères) ;
+  \item la compatibilité entre dev (Compose), CI (service container, tests SQLite séparés) et cluster (StatefulSet).
+\end{itemize}
+
+\section{Schéma détaillé}
+
+\subsection{Table \texttt{categorie}}
+
+\begin{lstlisting}[language=SQL,caption={Structure logique categorie}]
+CREATE TABLE categorie (
+  id SERIAL PRIMARY KEY,
+  nom VARCHAR UNIQUE NOT NULL,
+  description TEXT
+);
+\end{lstlisting}
+
+\subsection{Table \texttt{utilisateur}}
+
+Stocke \texttt{mot\_de\_passe\_hash} uniquement. Le champ \texttt{role} accepte \texttt{admin} ou \texttt{operateur} (contrôlé applicativement).
+
+\subsection{Table \texttt{produit}}
+
+\begin{itemize}
+  \item \texttt{reference\_sku} — identifiant métier unique ;
+  \item \texttt{quantite} — stock courant, entier $\geq 0$ après mouvements valides ;
+  \item \texttt{seuil\_alerte} — déclenche l'alerte lorsque \texttt{quantite <= seuil\_alerte}.
+\end{itemize}
+
+\subsection{Table \texttt{mouvement}}
+
+Journal append-only des opérations : \texttt{type\_mouvement} $\in \{\texttt{entree}, \texttt{sortie}\}$, horodatage \texttt{date\_mouvement}, lien vers l'auteur (\texttt{id\_utilisateur}).
+
+\section{Requêtes métier typiques}
+
+\subsection{Alertes}
+
+\texttt{GET /produits/alertes} exécute un filtre SQL du type :
+\begin{lstlisting}[language=SQL]
+SELECT * FROM produit WHERE quantite <= seuil_alerte ORDER BY quantite;
+\end{lstlisting}
+
+\subsection{Tableau de bord}
+
+Agrégations : \texttt{COUNT} sur produits, catégories, mouvements ; sous-requête ou filtre pour les produits en alerte renvoyés dans le même payload JSON.
+
+\section{Stratégie de démarrage du schéma}
+
+Deux mécanismes coexistent :
+\begin{enumerate}
+  \item \textbf{Runtime} : \texttt{create\_all} dans le lifespan FastAPI crée les tables si absentes, puis \texttt{seed.py}.
+  \item \textbf{Alembic} : migration \texttt{001\_initial} versionnée pour documentation et pipelines futurs (\texttt{alembic upgrade head}).
+\end{enumerate}
+
+En cluster, le StatefulSet PostgreSQL monte un volume persistant (\texttt{postgres.storage: 1Gi} dans \texttt{values.yaml}) : les données survivent au redémarrage du pod sous réserve du PVC.
+
+\section{Données de démonstration}
+
+Le seed crée notamment :
+\begin{itemize}
+  \item \texttt{admin@stock.tn} / \texttt{Admin123!} ;
+  \item \texttt{operateur@stock.tn} / \texttt{Operateur123!} ;
+  \item catégories et produits avec quantités variées pour illustrer les alertes.
+\end{itemize}
+
+\section{Flux transactionnel d'un mouvement}
+
+La figure~\ref{fig:seq-mouvement} décrit les échanges lors d'une sortie de stock : une seule transaction SQLAlchemy regroupe l'insertion du mouvement et la mise à jour de \texttt{produit.quantite}. En cas d'erreur avant le \texttt{commit}, aucune des deux écritures n'est persistée.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+    node distance=0.35cm,
+    actor/.style={font=\small\bfseries},
+    msg/.style={-{Stealth}, font=\footnotesize}
+  ]
+    \node[actor] (cli) at (0,0) {Client};
+    \node[actor] (api) at (4,0) {API};
+    \node[actor] (svc) at (8,0) {gestion\_stock};
+    \node[actor] (db) at (12,0) {PostgreSQL};
+
+    \draw[msg] (0,-0.8) -- node[above] {POST /mouvements} (4,-0.8);
+    \draw[msg] (4,-1.3) -- node[above] {valider JWT} (4,-1.3);
+    \draw[msg] (4,-1.8) -- node[above] {creer\_mouvement()} (8,-1.8);
+    \draw[msg] (8,-2.3) -- node[above] {SELECT produit} (12,-2.3);
+    \draw[msg] (12,-2.8) -- node[above] {ligne produit} (8,-2.8);
+    \draw[msg] (8,-3.3) -- node[above, font=\footnotesize] {qty $<$ 0 : 400} (4,-3.3);
+    \draw[msg] (8,-3.8) -- node[above] {INSERT + UPDATE} (12,-3.8);
+    \draw[msg] (12,-4.3) -- node[above] {COMMIT} (8,-4.3);
+    \draw[msg] (8,-4.8) -- node[above] {201 + JSON} (4,-4.8);
+    \draw[msg] (4,-5.3) -- node[above] {réponse} (0,-5.3);
+  \end{tikzpicture}
+  \caption{Séquence simplifiée — enregistrement d'un mouvement}
+  \label{fig:seq-mouvement}
+\end{figure}
+
+\section{Relations et cardinalités}
+
+\begin{itemize}
+  \item Une \textbf{catégorie} regroupe plusieurs \textbf{produits} ; la suppression d'une catégorie référencée est bloquée par la contrainte FK (comportement REST : erreur applicative ou 409 selon le cas).
+  \item Un \textbf{produit} possède un historique de \textbf{mouvements} ordonné par \texttt{date\_mouvement} décroissant côté API.
+  \item Chaque mouvement enregistre l'\textbf{utilisateur} auteur via \texttt{id\_utilisateur}, ce qui permet une traçabilité minimale (qui a saisi l'entrée ou la sortie).
+\end{itemize}
+
+\section{Index et performances}
+
+Le schéma initial ne déclare pas d'index secondaires explicites au-delà des clés primaires et des contraintes \texttt{UNIQUE} sur \texttt{nom} (catégorie), \texttt{email} et \texttt{reference\_sku}. Pour un volume de démonstration (quelques dizaines de produits), les requêtes restent instantanées. Une montée en charge imposerait typiquement :
+\begin{itemize}
+  \item un index sur \texttt{produit(id\_categorie)} pour les jointures catalogue ;
+  \item un index composite \texttt{(quantite, seuil\_alerte)} ou une vue matérialisée pour les alertes si le filtre devient coûteux ;
+  \item un index sur \texttt{mouvement(id\_produit, date\_mouvement DESC)} pour l'historique paginé.
+\end{itemize}
+
+\section{Comparaison SQLite (tests) et PostgreSQL (runtime)}
+
+Les tests unitaires (\texttt{backend/tests/}) utilisent SQLite en mémoire : le dialecte SQLAlchemy reste identique pour les opérations CRUD simples, mais certaines subtilités (types, contraintes) diffèrent. Le runtime Compose et cluster cible PostgreSQL 16 ; c'est la référence pour les types \texttt{SERIAL}, \texttt{TEXT} et le comportement transactionnel réel.
+
+\section{Cohérence et limites}
+
+\begin{itemize}
+  \item Pas de verrouillage pessimiste explicite : en concurrence élevée, deux sorties simultanées pourraient nécessiter \texttt{SELECT FOR UPDATE} ; le périmètre actuel suppose une charge modérée.
+  \item Pas de soft-delete : les DELETE sont physiques (réservés admin).
+  \item Pas de réplication PostgreSQL en local : single instance.
+  \item Les exports CSV ne modifient pas le schéma : ils lisent un snapshot des produits au moment de l'appel admin.
+\end{itemize}

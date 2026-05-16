@@ -1,0 +1,101 @@
+\chapter{Observabilité — Prometheus et Grafana}
+\label{ch:monitoring}
+
+\section{Objectifs}
+
+L'observabilité vise à répondre, en exploitation :
+\begin{itemize}
+  \item l'API reçoit-elle du trafic ? à quel rythme ?
+  \item quelle est la latence (p50, p95, p99) ?
+  \item y a-t-il des erreurs 5xx ?
+  \item quelles routes sont les plus sollicitées ?
+\end{itemize}
+
+StockFlow adopte la stack \textbf{Prometheus} (collecte) + \textbf{Grafana} (visualisation), standard dans l'écosystème Kubernetes.
+
+\section{Instrumentation applicative}
+
+Le package \texttt{prometheus-fastapi-instrumentator} expose automatiquement sur \texttt{GET /metrics} :
+\begin{itemize}
+  \item compteur \texttt{http\_requests\_total} (labels method, handler, status) ;
+  \item histogrammes de durée de requête ;
+  \item métriques en vol (\texttt{inprogress}).
+\end{itemize}
+
+Aucune modification manuelle par route n'est nécessaire pour les métriques HTTP de base.
+
+\section{kube-prometheus-stack}
+
+Terraform installe le chart communautaire \texttt{kube-prometheus-stack} (version 65.5.0) avec des values dans \texttt{monitoring/kube-prometheus-values.yaml} :
+
+\begin{itemize}
+  \item \textbf{Grafana} activé, mot de passe admin via \texttt{set\_sensitive} Terraform ;
+  \item \textbf{sidecar dashboards} — surveille les ConfigMaps labellisées \texttt{grafana\_dashboard: "1"} dans tous les namespaces ;
+  \item \textbf{Prometheus} — rétention 2 jours, ressources limitées pour kind ;
+  \item composants control-plane désactivés (scheduler, etcd, etc.) pour alléger le cluster de démo.
+\end{itemize}
+
+\section{ServiceMonitor}
+
+Le CRD \texttt{ServiceMonitor} (Prometheus Operator) décrit comment scraper une cible. Le chart \texttt{pfa-stock} crée :
+
+\begin{lstlisting}[style=yaml,caption={Extrait ServiceMonitor (conceptuel)}]
+spec:
+  selector:
+    matchLabels:
+      app: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+\end{lstlisting}
+
+Le label \texttt{release: kube-prometheus-stack} associe ce monitor à l'instance Prometheus déployée par le chart homonyme.
+
+\section{Flux de métriques}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[node distance=1.1cm]
+    \node[block, svc] (pod) {Pod API\\/metrics port 8000};
+    \node[block, infra, right=1.6cm of pod] (sm) {ServiceMonitor};
+    \node[block, infra, right=1.6cm of sm] (prom) {Prometheus};
+    \node[block, cloud, below=1.2cm of prom] (graf) {Grafana};
+    \draw[line] (pod) -- (sm);
+    \draw[line] (sm) -- (prom);
+    \draw[line] (prom) -- (graf);
+  \end{tikzpicture}
+  \caption{Chemin des métriques}
+  \label{fig:metrics-flow}
+\end{figure}
+
+\section{Dashboard Grafana}
+
+Le fichier \texttt{monitoring/dashboards/pfa-stock-api.json} définit le tableau de bord \emph{PFA Stock — API FastAPI} avec panneaux :
+\begin{itemize}
+  \item débit de requêtes ;
+  \item erreurs 5xx ;
+  \item latences p50 / p95 / p99 ;
+  \item répartition par route et par code HTTP ;
+  \item requêtes en cours.
+\end{itemize}
+
+Terraform injecte ce JSON en ConfigMap ; le sidecar Grafana le charge automatiquement — le dashboard est \textbf{versionné comme le code}.
+
+\section{Accès opérationnel}
+
+\begin{lstlisting}[style=bash]
+make grafana
+# ou scripts/port-forward-grafana.sh
+# http://localhost:3001 — admin / GrafanaAdmin123!
+\end{lstlisting}
+
+Pendant une démonstration, naviguer dans l'application fait varier les courbes — preuve que le scrape est effectif.
+
+\section{Mode développement}
+
+En \texttt{make dev}, Prometheus/Grafana ne sont pas déployés par défaut. Les métriques restent accessibles sur \texttt{http://localhost:8000/metrics} pour curl ou un Prometheus local ad hoc.
+
+\section{Alerting}
+
+Alertmanager est inclus dans kube-prometheus-stack mais les règles d'alerte custom (stock critique, API down prolongé) ne sont pas configurées dans le périmètre actuel — extension naturelle pour une phase ultérieure.

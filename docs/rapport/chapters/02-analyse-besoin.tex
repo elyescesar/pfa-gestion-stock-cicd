@@ -1,0 +1,99 @@
+\chapter{Analyse du besoin et objectifs}
+\label{ch:besoin}
+
+\section{Problématique métier}
+
+Un gestionnaire de stock doit pouvoir répondre rapidement aux questions suivantes :
+\begin{enumerate}
+  \item Quels produits sont en rupture ou proches du seuil minimum ?
+  \item Quelles entrées et sorties ont eu lieu, par qui, et pour quel motif ?
+  \item Comment organiser le catalogue par familles (catégories) ?
+  \item Comment exporter l'état du stock pour archivage ou traitement externe ?
+\end{enumerate}
+
+Ces besoins imposent une base relationnelle cohérente, des règles métier transactionnelles (un mouvement de sortie ne doit pas rendre le stock négatif) et une interface qui reflète l'état en temps quasi réel après chaque opération.
+
+\section{Acteurs et rôles}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Acteurs et permissions}
+  \label{tab:acteurs}
+  \begin{tabular}{@{}llp{7cm}@{}}
+    \toprule
+    \textbf{Rôle} & \textbf{Compte démo} & \textbf{Capacités} \\
+    \midrule
+    Administrateur & \texttt{admin@stock.tn} & CRUD complet, suppression catégories/produits, export CSV S3 \\
+    Opérateur & \texttt{operateur@stock.tn} & Consultation, création mouvements et entités (sauf suppressions réservées admin) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+L'authentification repose sur un jeton JWT transmis dans l'en-tête \texttt{Authorization: Bearer}. Le backend résout l'utilisateur courant à chaque requête protégée via la dépendance \texttt{obtenir\_utilisateur\_courant}.
+
+\section{Exigences fonctionnelles}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Exigences fonctionnelles principales}
+  \label{tab:exigences-fonctionnelles}
+  \small
+  \begin{tabular}{@{}p{2.2cm}p{11cm}@{}}
+    \toprule
+    \textbf{ID} & \textbf{Description} \\
+    \midrule
+    F1 & Connexion par email et mot de passe, émission d'un jeton d'accès. \\
+    F2 & CRUD catégories (nom, description optionnelle). \\
+    F3 & CRUD produits (nom, référence SKU unique, quantité, seuil d'alerte, catégorie). \\
+    F4 & Enregistrement de mouvements \texttt{entree} ou \texttt{sortie} avec mise à jour atomique du stock. \\
+    F5 & Rejet d'une sortie si le stock deviendrait négatif (\texttt{stock\_insuffisant}). \\
+    F6 & Tableau de bord : compteurs produits, catégories, mouvements, liste des alertes. \\
+    F7 & Page alertes : produits dont \texttt{quantite <= seuil\_alerte}. \\
+    F8 & Export CSV de tous les produits vers S3 (réservé admin). \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Exigences non fonctionnelles}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Exigences non fonctionnelles}
+  \label{tab:exigences-nf}
+  \small
+  \begin{tabular}{@{}p{2.2cm}p{11cm}@{}}
+    \toprule
+    \textbf{ID} & \textbf{Description} \\
+    \midrule
+    NF1 & \textbf{Conteneurisation} : exécution reproductible via Docker. \\
+    NF2 & \textbf{Orchestration} : déploiement sur Kubernetes avec Ingress, sondes de santé, ServiceMonitor. \\
+    NF3 & \textbf{IaC} : infrastructure déclarative (Terraform + Helm). \\
+    NF4 & \textbf{Observabilité} : métriques Prometheus sur \texttt{/metrics}, dashboard Grafana. \\
+    NF5 & \textbf{CI} : validation automatique (lint, tests, build images, validate Terraform/Helm). \\
+    NF6 & \textbf{Sécurité} : mots de passe hashés (bcrypt), secrets Kubernetes pour données sensibles. \\
+    NF7 & \textbf{Documentation opérationnelle} : README, Makefile, scripts \texttt{make demo}. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Objectifs techniques}
+
+Les objectifs techniques déclinés dans l'implémentation sont :
+
+\begin{enumerate}
+  \item \textbf{Séparation des couches} : frontend statique, API stateless, base PostgreSQL, stockage objet pour les exports.
+  \item \textbf{Deux chemins de déploiement} partageant les mêmes Dockerfiles : Compose (vélocité) et kind/Helm (réalisme production).
+  \item \textbf{Automatisation bout en bout} : un développeur clone le dépôt, installe Docker, exécute \texttt{make demo-cluster} et obtient l'application, le monitoring et le bucket S3 sans configuration manuelle dispersée.
+  \item \textbf{Qualité logicielle mesurable} : tests unitaires et d'intégration API, lint (ruff, eslint), smoke tests shell (\texttt{make verify}).
+  \item \textbf{Préparation cloud} : providers Terraform et chart Helm conçus pour une migration vers AWS/EKS en changeant endpoints et backends, sans réécriture applicative.
+\end{enumerate}
+
+\section{Hors périmètre}
+
+Les éléments suivants sont explicitement hors périmètre de la version documentée :
+\begin{itemize}
+  \item déploiement continu automatique vers un environnement distant (pas de \texttt{helm upgrade} en CI) ;
+  \item haute disponibilité multi-nœuds, autoscaling horizontal, TLS terminé par certificats réels ;
+  \item gestion fine des permissions au-delà de deux rôles ;
+  \item application mobile native ou mode hors-ligne.
+\end{itemize}

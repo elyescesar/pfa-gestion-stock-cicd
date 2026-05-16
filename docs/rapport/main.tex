@@ -1,0 +1,41 @@
+\documentclass[11pt,a4paper,oneside]{report}
+
+\input{preamble}
+
+\title{StockFlow\\[0.4em]
+\large Gestion de stock et chaîne DevOps locale\\
+\large Rapport technique complet}
+\author{[Nom Prénom]}
+\date{[Mois Année]}
+
+\begin{document}
+
+\input{chapters/00-page-garde}
+\frontmatter
+\tableofcontents
+\listoffigures
+\listoftables
+\mainmatter
+
+\input{chapters/01-introduction}
+\input{chapters/02-analyse-besoin}
+\input{chapters/03-architecture}
+\input{chapters/04-backend}
+\input{chapters/05-frontend}
+\input{chapters/06-donnees}
+\input{chapters/07-docker}
+\input{chapters/08-kubernetes-helm}
+\input{chapters/09-terraform}
+\input{chapters/10-monitoring}
+\input{chapters/11-cicd}
+\input{chapters/12-securite-tests}
+\input{chapters/13-exploitation}
+\input{chapters/14-conclusion}
+
+\appendix
+\input{chapters/annexe-api}
+\input{chapters/annexe-config}
+
+\backmatter
+
+\end{document}

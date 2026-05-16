@@ -1,0 +1,43 @@
+\chapter{Conclusion et perspectives}
+\label{ch:conclusion}
+
+\section{Bilan}
+
+Le projet \stockflow{} démontre qu'une application métier de gestion de stock peut être livrée conjointement avec une chaîne DevOps complète : conteneurisation, orchestration Kubernetes locale, infrastructure as code, observabilité et intégration continue — tout en restant reproductible via Docker sur une workstation standard.
+
+Les choix techniques (FastAPI, React, PostgreSQL, kind, Helm, Terraform, Prometheus/Grafana, GitHub Actions) forment un écosystème cohérent et largement documenté dans l'industrie, facilitant la montée en compétence et la migration ultérieure vers un cloud public.
+
+\section{Objectifs atteints}
+
+\begin{itemize}
+  \item Fonctionnalités métier couvrant catalogue, mouvements, alertes, tableau de bord et export ;
+  \item Deux modes d'exécution (Compose et cluster) partageant les mêmes images ;
+  \item Pipeline CI à six voies validant code, images et manifests ;
+  \item Dashboard Grafana alimenté par métriques réelles de l'API ;
+  \item Automatisation \texttt{make demo-cluster} pour démonstration bout en bout.
+\end{itemize}
+
+\section{Limites connues}
+
+\begin{itemize}
+  \item Cluster mono-nœud, pas de HA ;
+  \item Secrets et mots de passe de démo non durcis ;
+  \item CI ne déploie pas ni ne pousse les images ;
+  \item Tests d'intégration Postgres en CI non exploités (SQLite en tests unitaires) ;
+  \item Pas de TLS ni de gestion centralisée des secrets (Vault, etc.).
+\end{itemize}
+
+\section{Perspectives}
+
+\begin{enumerate}
+  \item \textbf{Cloud managé} — EKS/GKE, RDS, S3 réel, backend Terraform distant ;
+  \item \textbf{CD} — publication d'images et déploiement staging automatique après CI verte ;
+  \item \textbf{GitOps} — Flux ou Argo CD pour reconcilier l'état cluster sur Git ;
+  \item \textbf{Sécurité} — TLS, NetworkPolicies, scan d'images, rotation JWT ;
+  \item \textbf{Fonctionnel} — réapprovisionnement automatique, notifications alertes, audit trail enrichi ;
+  \item \textbf{Tests} — couverture e2e, tests de charge (k6), intégration Postgres en CI.
+\end{enumerate}
+
+\section{Mot de fin}
+
+\stockflow{} illustre une approche où le code applicatif et l'infrastructure évoluent dans le même dépôt, revus par la même pipeline CI. Cette unification réduit l'écart entre « ça marche en local » et « ça tourne comme en production », condition préalable à tout déploiement sérieux.
