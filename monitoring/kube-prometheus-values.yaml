@@ -1,0 +1,28 @@
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: true
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 2d
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+
+alertmanager:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+defaultRules:
+  create: true

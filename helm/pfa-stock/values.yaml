@@ -1,0 +1,40 @@
+namespace: pfa-stock
+
+imageApi:
+  repository: pfa-stock-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imageWeb:
+  repository: pfa-stock-web
+  tag: latest
+  pullPolicy: IfNotPresent
+
+postgres:
+  user: stock
+  password: stock
+  database: stock_db
+  storage: 1Gi
+
+api:
+  port: 8000
+  replicas: 1
+
+web:
+  port: 80
+  replicas: 1
+
+ingress:
+  host: localhost
+  className: nginx
+
+secretJwt: change-me-local-only
+corsOrigins: http://localhost,http://localhost:3000
+
+aws:
+  endpoint: http://localstack.pfa-stock.svc.cluster.local:4566
+  bucket: pfa-stock-exports
+
+monitoring:
+  enabled: true
+  releaseLabel: kube-prometheus-stack

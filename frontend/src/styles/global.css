@@ -1,0 +1,237 @@
+:root {
+  --couleur-fond: #0f1419;
+  --couleur-surface: #1a2332;
+  --couleur-accent: #3b82f6;
+  --couleur-accent-hover: #2563eb;
+  --couleur-texte: #e2e8f0;
+  --couleur-texte-secondaire: #94a3b8;
+  --couleur-alerte: #f59e0b;
+  --couleur-danger: #ef4444;
+  --couleur-succes: #22c55e;
+  --rayon-bordure: 8px;
+  --ombre: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  min-height: 100vh;
+}
+
+a {
+  color: var(--couleur-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  background: var(--couleur-surface);
+  padding: 1.5rem 1rem;
+  border-right: 1px solid #2d3a4f;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar h1 {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  color: var(--couleur-accent);
+}
+
+.sidebar a {
+  padding: 0.6rem 1rem;
+  border-radius: var(--rayon-bordure);
+  color: var(--couleur-texte-secondaire);
+  text-decoration: none;
+}
+
+.sidebar a:hover,
+.sidebar a.actif {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--couleur-texte);
+  text-decoration: none;
+}
+
+.contenu-principal {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.page-titre {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.cartes-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.carte {
+  background: var(--couleur-surface);
+  border-radius: var(--rayon-bordure);
+  padding: 1.25rem;
+  box-shadow: var(--ombre);
+}
+
+.carte h3 {
+  font-size: 0.85rem;
+  color: var(--couleur-texte-secondaire);
+  margin-bottom: 0.5rem;
+}
+
+.carte .valeur {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.tableau {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--couleur-surface);
+  border-radius: var(--rayon-bordure);
+  overflow: hidden;
+}
+
+.tableau th,
+.tableau td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #2d3a4f;
+}
+
+.tableau th {
+  background: #243044;
+  color: var(--couleur-texte-secondaire);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.tableau tr:hover td {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.badge-alerte {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--couleur-alerte);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.formulaire {
+  background: var(--couleur-surface);
+  padding: 1.5rem;
+  border-radius: var(--rayon-bordure);
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.formulaire input,
+.formulaire select,
+.formulaire textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #2d3a4f;
+  border-radius: var(--rayon-bordure);
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.bouton {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.bouton-primaire {
+  background: var(--couleur-accent);
+  color: white;
+}
+
+.bouton-primaire:hover {
+  background: var(--couleur-accent-hover);
+}
+
+.bouton-secondaire {
+  background: #2d3a4f;
+  color: var(--couleur-texte);
+}
+
+.bouton-danger {
+  background: var(--couleur-danger);
+  color: white;
+}
+
+.page-connexion {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-connexion .formulaire {
+  width: 100%;
+  max-width: 400px;
+}
+
+.message-erreur {
+  color: var(--couleur-danger);
+  font-size: 0.9rem;
+}
+
+.actions-ligne {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.entete-utilisateur {
+  margin-top: auto;
+  padding-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--couleur-texte-secondaire);
+}
