@@ -36,12 +36,10 @@ spec:
             - containerPort: {{ .Values.api.port }}
           env:
             - name: DATABASE_URL
-              value: postgresql://{{ .Values.postgres.user }}:$(POSTGRES_PASSWORD)@postgres:5432/{{ .Values.postgres.database }}
-            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: pfa-stock-secrets
-                  key: POSTGRES_PASSWORD
+                  key: DATABASE_URL
             - name: SECRET_JWT
               valueFrom:
                 secretKeyRef:
@@ -50,11 +48,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: pfa-stock-config
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.api.port }}
+            failureThreshold: 30
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: {{ .Values.api.port }}
-            initialDelaySeconds: 15
             periodSeconds: 10
 ---
 {{- if .Values.monitoring.enabled }}

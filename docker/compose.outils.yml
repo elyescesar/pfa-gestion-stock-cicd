@@ -12,6 +12,7 @@ services:
   terraform:
     image: hashicorp/terraform:1.9
     working_dir: /work/infrastructure/terraform
+    network_mode: host
     volumes:
       - ..:/work
       - ../.kube:/root/.kube:ro
@@ -19,10 +20,8 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: eu-west-1
-      TF_VAR_localstack_endpoint: http://localstack:4566
+      TF_VAR_localstack_endpoint: http://127.0.0.1:4566
       KUBECONFIG: /root/.kube/config
-    networks:
-      - pfa-outils
     depends_on:
       - localstack
 

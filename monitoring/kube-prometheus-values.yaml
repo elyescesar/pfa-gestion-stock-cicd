@@ -1,6 +1,12 @@
 grafana:
   enabled: true
   defaultDashboardsEnabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
 
 prometheus:
   prometheusSpec:

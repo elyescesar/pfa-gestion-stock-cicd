@@ -5,11 +5,12 @@ resource "helm_release" "ingress_nginx" {
   namespace        = kubernetes_namespace.ingress_nginx.metadata[0].name
   create_namespace = false
   version          = "4.11.3"
+  timeout          = 600
+  wait             = true
 
-  set {
-    name  = "controller.publishService.enabled"
-    value = "true"
-  }
+  values = [
+    file("${path.module}/values/ingress-nginx-kind.yaml")
+  ]
 }
 
 resource "helm_release" "kube_prometheus" {
@@ -19,7 +20,8 @@ resource "helm_release" "kube_prometheus" {
   namespace        = kubernetes_namespace.monitoring.metadata[0].name
   create_namespace = false
   version          = "65.5.0"
-  timeout          = 600
+  timeout          = 900
+  wait             = true
 
   values = [
     file("${path.module}/../../monitoring/kube-prometheus-values.yaml")
@@ -36,9 +38,10 @@ resource "helm_release" "kube_prometheus" {
 resource "helm_release" "pfa_stock" {
   name             = "pfa-stock"
   chart            = "${path.module}/../../helm/pfa-stock"
-  namespace        = var.namespace_app
-  create_namespace = true
+  namespace        = kubernetes_namespace.pfa_stock.metadata[0].name
+  create_namespace = false
   timeout          = 600
+  wait             = true
 
   set {
     name  = "monitoring.releaseLabel"

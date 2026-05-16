@@ -9,3 +9,9 @@ resource "kubernetes_namespace" "ingress_nginx" {
     name = "ingress-nginx"
   }
 }
+
+resource "kubernetes_namespace" "pfa_stock" {
+  metadata {
+    name = var.namespace_app
+  }
+}
