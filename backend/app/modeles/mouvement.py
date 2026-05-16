@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.base_de_donnees import Base
+
+if TYPE_CHECKING:
+    from app.modeles.produit import Produit
+    from app.modeles.utilisateur import Utilisateur
 
 
 class Mouvement(Base):
@@ -17,5 +24,5 @@ class Mouvement(Base):
     id_produit: Mapped[int] = mapped_column(ForeignKey("produit.id"), nullable=False)
     id_utilisateur: Mapped[int] = mapped_column(ForeignKey("utilisateur.id"), nullable=False)
 
-    produit: Mapped["Produit"] = relationship(back_populates="mouvements")
-    utilisateur: Mapped["Utilisateur"] = relationship(back_populates="mouvements")
+    produit: Mapped[Produit] = relationship(back_populates="mouvements")
+    utilisateur: Mapped[Utilisateur] = relationship(back_populates="mouvements")

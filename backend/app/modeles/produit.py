@@ -1,7 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.base_de_donnees import Base
+
+if TYPE_CHECKING:
+    from app.modeles.categorie import Categorie
+    from app.modeles.mouvement import Mouvement
 
 
 class Produit(Base):
@@ -14,5 +22,5 @@ class Produit(Base):
     seuil_alerte: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     id_categorie: Mapped[int] = mapped_column(ForeignKey("categorie.id"), nullable=False)
 
-    categorie: Mapped["Categorie"] = relationship(back_populates="produits")
-    mouvements: Mapped[list["Mouvement"]] = relationship(back_populates="produit")
+    categorie: Mapped[Categorie] = relationship(back_populates="produits")
+    mouvements: Mapped[list[Mouvement]] = relationship(back_populates="produit")

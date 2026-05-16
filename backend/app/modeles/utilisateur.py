@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.base_de_donnees import Base
+
+if TYPE_CHECKING:
+    from app.modeles.mouvement import Mouvement
 
 
 class Utilisateur(Base):
@@ -12,4 +19,4 @@ class Utilisateur(Base):
     mot_de_passe_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(30), default="operateur", nullable=False)
 
-    mouvements: Mapped[list["Mouvement"]] = relationship(back_populates="utilisateur")
+    mouvements: Mapped[list[Mouvement]] = relationship(back_populates="utilisateur")
