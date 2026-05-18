@@ -40,7 +40,6 @@ Erreur métier : \texttt{400} \texttt{stock\_insuffisant}.
 
 \section{Exports}
 
-\texttt{POST /exports/produits-csv} — admin uniquement, retourne informations sur l'objet S3 créé.
 
 \section{Santé et métriques}
 
@@ -134,4 +133,4 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
   http://localhost:8000/api/v1/mouvements
 \end{lstlisting}
 
-En mode cluster, remplacer l'hôte par \texttt{http://localhost/api/v1/...} (préfixe Ingress).
+En production : \texttt{https://api.pfa.elyes.dev/api/v1/...}.

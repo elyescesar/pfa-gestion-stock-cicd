@@ -29,10 +29,6 @@ services:
       DATABASE_URL: postgresql://stock:stock@postgres:5432/stock_db
       SECRET_JWT: change-me-local-only
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost
-      AWS_ENDPOINT_URL: http://localstack:4566
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      S3_BUCKET_EXPORTS: pfa-stock-exports
     ports:
       - "8000:8000"
     depends_on:
@@ -59,18 +55,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    networks:
-      - pfa
-
-  localstack:
-    image: localstack/localstack:3
-    container_name: pfa-localstack
-    restart: unless-stopped
-    environment:
-      SERVICES: s3
-      DEBUG: "0"
-    ports:
-      - "4566:4566"
     networks:
       - pfa
 

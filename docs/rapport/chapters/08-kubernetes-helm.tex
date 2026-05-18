@@ -1,36 +1,33 @@
 \chapter{Kubernetes et Helm}
 \label{ch:k8s}
 
-\section{Kubernetes et kind}
+\section{Kubernetes en production (k3s)}
 
 \subsection{Principe}
 
-\textbf{Kubernetes} orchestre des conteneurs sur un cluster : scheduling, réseau, stockage, auto-healing via sondes. \textbf{kind} (Kubernetes in Docker) instancie un cluster dont les nœuds sont des conteneurs Docker — idéal pour développement et CI sans cloud.
+\textbf{Kubernetes} orchestre des conteneurs sur un cluster : scheduling, réseau, stockage, auto-healing via sondes. En production, le projet utilise \textbf{k3s} sur un \textbf{VPS dédié} (séparé de tout serveur Coolify client) : distribution légère, adaptée à un nœud unique, avec ServiceLB pour exposer ingress-nginx sur les ports~80 et~443.
 
-\subsection{Configuration du cluster}
+\subsection{Installation}
 
-\texttt{infrastructure/kubernetes/kind/cluster-config.yaml} définit :
-\begin{itemize}
-  \item cluster nommé \texttt{pfa-stock} ;
-  \item un nœud \texttt{control-plane} avec label \texttt{ingress-ready=true} ;
-  \item mapping \texttt{hostPort} 80 et 443 vers le nœud (accès \texttt{http://localhost} depuis l'hôte).
-\end{itemize}
+k3s est installé avec Traefik désactivé (ingress-nginx est géré par Terraform) :
 
-Le kubeconfig généré est stocké dans \texttt{.kube/config} (gitignoré). Toute commande \texttt{kubectl} doit utiliser :
 \begin{lstlisting}[style=bash]
-export KUBECONFIG="$(pwd)/.kube/config"
+curl -sfL https://get.k3s.io | sh -s - - --disable traefik --write-kubeconfig-mode 644
 \end{lstlisting}
+
+Le guide opérationnel \texttt{docs/vps-setup.md} détaille DNS, pare-feu, secrets GitHub et bootstrap.
 
 \section{Namespaces}
 
-Terraform crée trois namespaces (\texttt{kubernetes.tf}) :
+Terraform crée les namespaces (\texttt{kubernetes.tf}) :
 \begin{itemize}
   \item \texttt{ingress-nginx} — contrôleur Ingress ;
+  \item \texttt{cert-manager} — certificats TLS Let's Encrypt ;
   \item \texttt{monitoring} — kube-prometheus-stack ;
-  \item \texttt{pfa-stock} — application métier.
+  \item \texttt{pfa-stock} — application métier ;
+  \item \texttt{pgadmin} — administration PostgreSQL ;
+  \item \texttt{kubernetes-dashboard} — visualisation du cluster.
 \end{itemize}
-
-Le namespace application n'est \textbf{pas} créé par le chart Helm (\texttt{create\_namespace=false}) pour éviter les conflits « already exists » lors des réapplications.
 
 \section{Chart Helm \texttt{pfa-stock}}
 
@@ -38,9 +35,14 @@ Le namespace application n'est \textbf{pas} créé par le chart Helm (\texttt{cr
 
 \texttt{helm/pfa-stock/Chart.yaml} : chart version 1.0.0, application version 1.0.0.
 
-\subsection{Values principales}
+\subsection{Values}
 
-\texttt{values.yaml} paramètre images (\texttt{pfa-stock-api}, \texttt{pfa-stock-web}, tag \texttt{latest}), credentials PostgreSQL, Ingress host \texttt{localhost}, endpoint LocalStack in-cluster, activation du ServiceMonitor (\texttt{monitoring.enabled: true}).
+\begin{itemize}
+  \item \texttt{values.yaml} — valeurs par défaut (développement / lint) ;
+  \item \texttt{values-prod.yaml} — production : sous-domaines \texttt{pfa.elyes.dev} et \texttt{api.pfa.elyes.dev}, TLS via cert-manager, \texttt{imagePullSecrets} pour GHCR.
+\end{itemize}
+
+Les tags d'images et les secrets sensibles sont injectés par le workflow \texttt{deploy.yml} (\texttt{--set}, \texttt{--set-string}).
 
 \subsection{Ressources déployées}
 
@@ -56,76 +58,47 @@ Le namespace application n'est \textbf{pas} créé par le chart Helm (\texttt{cr
     \texttt{postgres.yaml} & StatefulSet + Service & Volume \texttt{1Gi}, image postgres:16-alpine \\
     \texttt{api.yaml} & Deployment + Service & Env depuis Secret/ConfigMap, probes /health, ServiceMonitor \\
     \texttt{web.yaml} & Deployment + Service & nginx, port 80 \\
-    \texttt{localstack.yaml} & Deployment + Service & SERVICES=s3 \\
-    \texttt{secret.yaml} & Secret & JWT, mot de passe PG, DATABASE\_URL complète \\
-    \texttt{configmap.yaml} & ConfigMap & CORS, variables AWS \\
-    \texttt{ingress.yaml} & Ingress & class nginx, /api → api:8000, / → web:80 \\
+    \texttt{secret.yaml} & Secret & JWT, mot de passe PG, DATABASE\_URL \\
+    \texttt{configmap.yaml} & ConfigMap & CORS \\
+    \texttt{ingress.yaml} & Ingress (×2) & web et API sur hôtes distincts, TLS \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsection{Ingress et routage}
 
-L'Ingress \texttt{pfa-stock-ingress} utilise \texttt{ingressClassName: nginx}. Contrairement à certaines configurations initiales, \textbf{aucune annotation de rewrite} ne supprime le préfixe \texttt{/api} — l'API attend les chemins complets \texttt{/api/v1/...}.
-
-La figure~\ref{fig:ingress-routes} résume la répartition des chemins HTTP sur l'hôte \texttt{localhost} (port 80 exposé par ingress-nginx via \texttt{hostPort}).
-
-\begin{figure}[htbp]
-  \centering
-  \begin{tikzpicture}[
-    block/.style={draw, thick, rounded corners, minimum height=0.9cm, align=center, font=\small},
-    route/.style={font=\footnotesize\ttfamily}
-  ]
-    \node[block, fill=gray!12, minimum width=11cm] (ing) at (0,0) {Ingress nginx\\localhost port 80};
-    \node[block, fill=violet!12, below left=1.2cm and 0.3cm of ing, minimum width=4.2cm] (apisvc) {Service API\\port 8000};
-    \node[block, fill=blue!10, below right=1.2cm and 0.3cm of ing, minimum width=4.2cm] (websvc) {Service web\\port 80};
-    \node[route, above left=0.1cm and -0.2cm of ing] {préfixe /api};
-    \node[route, above right=0.1cm and -0.2cm of ing] {racine /};
-    \draw[-{Stealth}] (ing.south west) ++(0,-0.15) -| node[left, font=\footnotesize] {préfixe /api} (apisvc.north);
-    \draw[-{Stealth}] (ing.south east) ++(0,-0.15) -| node[right, font=\footnotesize] {racine /} (websvc.north);
-  \end{tikzpicture}
-  \caption{Routage Ingress — chemins préservés vers l'API}
-  \label{fig:ingress-routes}
-\end{figure}
-
-Le frontend est construit avec \texttt{VITE\_API\_URL=http://localhost} : les requêtes XHR ciblent donc \texttt{http://localhost/api/v1/...}, qui atteignent le pod API sans proxy nginx intermédiaire dans le pod web (contrairement au mode Compose où nginx du conteneur \texttt{web} peut proxifier \texttt{/api/}).
-
-\subsection{Sondes API}
-
+Deux ressources Ingress séparent frontend et API :
 \begin{itemize}
-  \item \texttt{startupProbe} — jusqu'à 30 échecs × 5\,s pour les démarrages lents (PostgreSQL) ;
-  \item \texttt{livenessProbe} — \texttt{/health} toutes les 10\,s.
+  \item \texttt{pfa.elyes.dev} → Service \texttt{web} (port 80) ;
+  \item \texttt{api.pfa.elyes.dev} → Service \texttt{api} (port 8000 en cluster uniquement, non exposé sur l'hôte).
 \end{itemize}
 
-\subsection{ServiceMonitor}
+Le frontend est construit avec \texttt{VITE\_API\_URL=https://api.pfa.elyes.dev} : les appels REST ciblent directement le sous-domaine API.
 
-Si \texttt{monitoring.enabled}, le template crée un \texttt{ServiceMonitor} CRD avec label \texttt{release: kube-prometheus-stack}, endpoint \texttt{/metrics} sur le port nommé \texttt{http}, intervalle 30\,s.
+Les annotations \texttt{cert-manager.io/cluster-issuer: letsencrypt-prod} provisionnent les certificats TLS.
 
-\section{ingress-nginx sur kind}
+\subsection{Sondes et ServiceMonitor}
 
-Le fichier \texttt{infrastructure/terraform/values/ingress-nginx-kind.yaml} adapte le chart upstream :
 \begin{itemize}
-  \item Service en ClusterIP avec \texttt{hostPort} 80/443 sur le nœud ingress-ready ;
-  \item désactivation des webhooks d'admission (souvent problématiques sur kind) ;
-  \item timeout Helm porté à 600\,s lors du \texttt{helm\_release} Terraform.
+  \item \texttt{startupProbe} et \texttt{livenessProbe} sur \texttt{/health} ;
+  \item \texttt{ServiceMonitor} pour Prometheus si \texttt{monitoring.enabled}.
 \end{itemize}
 
-\section{Cycle de déploiement manuel}
+\section{ingress-nginx sur le VPS}
 
-Via \texttt{make cluster} (\texttt{scripts/demarrer-cluster.sh}) :
+\texttt{infrastructure/terraform/values/ingress-nginx-vps.yaml} configure le contrôleur avec \texttt{service.type: LoadBalancer} (k3s ServiceLB lie 80/443 sur le nœud), sans \texttt{hostPort} (contrairement à l'ancienne configuration kind).
+
+\section{Cycle de déploiement}
+
 \begin{enumerate}
-  \item LocalStack up ;
-  \item kind create + load images ;
-  \item \texttt{terraform init} et \texttt{apply} dans le conteneur outils ;
-  \item application accessible sur port 80.
+  \item Bootstrap unique : \texttt{terraform apply} (plateforme) ;
+  \item À chaque push sur \texttt{main} : build images → GHCR → \texttt{helm upgrade} (application).
 \end{enumerate}
 
-\texttt{scripts/reparer-cluster.sh} désinstalle le release applicatif et relance Terraform en cas d'état incohérent.
-
-\section{Limites du déploiement local}
+\section{Sécurité et limites}
 
 \begin{itemize}
-  \item un seul nœud — pas de tolérance aux pannes ;
-  \item images \texttt{IfNotPresent} / \texttt{latest} — en production on épinglerait des digests ;
-  \item secrets en clair dans values pour la démo — à externaliser en prod.
+  \item un seul nœud — pas de tolérance aux pannes matérielles ;
+  \item secrets production dans GitHub Actions et Kubernetes Secrets ;
+  \item ports hôte 8000, 6001, 6002 non utilisés (réservés ailleurs sur d'autres serveurs).
 \end{itemize}

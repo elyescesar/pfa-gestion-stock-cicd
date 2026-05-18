@@ -31,8 +31,9 @@ Terraform installe le chart communautaire \texttt{kube-prometheus-stack} (versio
 \begin{itemize}
   \item \textbf{Grafana} activé, mot de passe admin via \texttt{set\_sensitive} Terraform ;
   \item \textbf{sidecar dashboards} — surveille les ConfigMaps labellisées \texttt{grafana\_dashboard: "1"} dans tous les namespaces ;
-  \item \textbf{Prometheus} — rétention 2 jours, ressources limitées pour kind ;
-  \item composants control-plane désactivés (scheduler, etcd, etc.) pour alléger le cluster de démo.
+  \item \textbf{Prometheus} — rétention 1 jour, ressources limitées pour VPS ;
+  \item composants control-plane désactivés pour alléger le cluster ;
+  \item \textbf{Grafana} exposé sur \texttt{grafana.pfa.elyes.dev} avec TLS (ingress + cert-manager).
 \end{itemize}
 
 \section{ServiceMonitor}
@@ -84,13 +85,7 @@ Terraform injecte ce JSON en ConfigMap ; le sidecar Grafana le charge automatiqu
 
 \section{Accès opérationnel}
 
-\begin{lstlisting}[style=bash]
-make grafana
-# ou scripts/port-forward-grafana.sh
-# http://localhost:3001 — admin / GrafanaAdmin123!
-\end{lstlisting}
-
-Pendant une démonstration, naviguer dans l'application fait varier les courbes — preuve que le scrape est effectif.
+Grafana est accessible en production sur \texttt{https://grafana.pfa.elyes.dev} (identifiants définis au \texttt{terraform apply}).
 
 \section{Mode développement}
 

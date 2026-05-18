@@ -77,14 +77,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - run: helm lint helm/pfa-stock
-      - run: helm template pfa-stock helm/pfa-stock > /dev/null
-
-  kubernetes:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: helm/kind-action@v1
-        with:
-          cluster_name: pfa-ci
-          config: infrastructure/kubernetes/kind/cluster-config.yaml
-      - run: helm lint helm/pfa-stock
+      - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-prod.yaml > /dev/null

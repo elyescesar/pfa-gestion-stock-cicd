@@ -15,10 +15,25 @@
     \texttt{SECRET\_JWT} & Clé signature JWT \\
     \texttt{CORS\_ORIGINS} & Liste séparée par virgules \\
     \texttt{VITE\_API\_URL} & URL API pour build frontend \\
-    \texttt{AWS\_ENDPOINT\_URL} & LocalStack ou AWS \\
-    \texttt{AWS\_ACCESS\_KEY\_ID} / \texttt{SECRET} & Credentials S3 \\
-    \texttt{S3\_BUCKET\_EXPORTS} & Nom du bucket \\
     \texttt{POSTGRES\_*} & Paramètres PostgreSQL (Compose/Helm) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Secrets GitHub Actions (production)}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Secrets repository pour \texttt{deploy.yml}}
+  \small
+  \begin{tabular}{@{}lp{8cm}@{}}
+    \toprule
+    \textbf{Secret} & \textbf{Usage} \\
+    \midrule
+    \texttt{KUBECONFIG} & Accès k3s (base64) \\
+    \texttt{SECRET\_JWT} & JWT production \\
+    \texttt{POSTGRES\_PASSWORD} & PostgreSQL \\
+    \texttt{GHCR\_PAT} & Pull images privées \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -34,10 +49,10 @@
     Python & 3.12 \\
     Node.js & 20 \\
     PostgreSQL & 16 \\
-    Terraform & 1.9 (image outils) \\
+    k3s & latest \\
     Helm chart ingress-nginx & 4.11.3 \\
+    cert-manager & v1.16.2 \\
     kube-prometheus-stack & 65.5.0 \\
-    LocalStack & 3.x \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -45,9 +60,9 @@
 \section{Fichiers de référence rapide}
 
 \begin{itemize}
-  \item Workflow CI : \texttt{.github/workflows/ci.yml}
+  \item CI : \texttt{.github/workflows/ci.yml}
+  \item CD : \texttt{.github/workflows/deploy.yml}
   \item Compose dev : \texttt{docker/compose.dev.yml}
-  \item Chart : \texttt{helm/pfa-stock/values.yaml}
-  \item Terraform : \texttt{infrastructure/terraform/}
-  \item Dashboard : \texttt{monitoring/dashboards/pfa-stock-api.json}
+  \item Chart prod : \texttt{helm/pfa-stock/values-prod.yaml}
+  \item Guide VPS : \texttt{docs/vps-setup.md}
 \end{itemize}

@@ -7,7 +7,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.base_de_donnees import Base, moteur
 from app.config import parametres
-from app.routes import auth, categories, exports, mouvements, produits, tableau_de_bord
+from app.routes import auth, categories, mouvements, produits, tableau_de_bord
 from app.seed import initialiser_donnees
 
 
@@ -36,7 +36,6 @@ application.include_router(categories.routeur, prefix=prefixe)
 application.include_router(produits.routeur, prefix=prefixe)
 application.include_router(mouvements.routeur, prefix=prefixe)
 application.include_router(tableau_de_bord.routeur, prefix=prefixe)
-application.include_router(exports.routeur, prefix=prefixe)
 
 Instrumentator().instrument(application).expose(application, endpoint="/metrics")
 

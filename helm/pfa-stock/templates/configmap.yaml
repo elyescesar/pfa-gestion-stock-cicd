@@ -5,8 +5,3 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   CORS_ORIGINS: {{ .Values.corsOrigins | quote }}
-  AWS_ENDPOINT_URL: {{ .Values.aws.endpoint | quote }}
-  S3_BUCKET_EXPORTS: {{ .Values.aws.bucket | quote }}
-  AWS_ACCESS_KEY_ID: test
-  AWS_SECRET_ACCESS_KEY: test
-  AWS_DEFAULT_REGION: eu-west-1

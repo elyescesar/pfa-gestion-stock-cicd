@@ -1,23 +1,13 @@
-provider "aws" {
-  access_key                  = "test"
-  secret_key                  = "test"
-  region                      = var.aws_region
-  s3_use_path_style           = true
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-
-  endpoints {
-    s3 = var.localstack_endpoint
-  }
+locals {
+  kubeconfig_file = pathexpand(coalesce(var.kubeconfig_path, "~/.kube/config"))
 }
 
 provider "kubernetes" {
-  config_path = "/root/.kube/config"
+  config_path = local.kubeconfig_file
 }
 
 provider "helm" {
   kubernetes {
-    config_path = "/root/.kube/config"
+    config_path = local.kubeconfig_file
   }
 }

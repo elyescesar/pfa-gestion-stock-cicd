@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-MODE="${1:-dev}"
 cd "$(dirname "$0")/.."
 REUSSITE=0
 ECHEC=0
@@ -42,17 +41,11 @@ else
 fi
 
 echo ""
-echo "=== Vérification stack ($MODE) ==="
+echo "=== Vérification stack (dev) ==="
 
-if [ "$MODE" = "dev" ]; then
-  URL_SANTE="http://localhost:8000/health"
-  URL_API="http://localhost:8000"
-  URL_WEB="http://localhost:3000"
-else
-  URL_SANTE="http://localhost/health"
-  URL_API="http://localhost"
-  URL_WEB="http://localhost"
-fi
+URL_SANTE="http://localhost:8000/health"
+URL_API="http://localhost:8000"
+URL_WEB="http://localhost:3000"
 
 if attendre_url "$URL_SANTE" 90; then
   ok "santé API $URL_SANTE"
@@ -83,25 +76,6 @@ if [ "$CODE_WEB" = "200" ]; then
   ok "frontend $URL_WEB"
 else
   ko "frontend $URL_WEB (HTTP $CODE_WEB)"
-fi
-
-if [ "$MODE" = "cluster" ]; then
-  if [ -f .kube/config ]; then
-    if docker run --rm --network host -v "$(pwd)/.kube/config:/kube/config:ro" \
-      bitnami/kubectl --kubeconfig=/kube/config get pods -n pfa-stock 2>/dev/null | grep -q Running; then
-      ok "pods Kubernetes pfa-stock"
-    else
-      ko "pods Kubernetes pfa-stock"
-    fi
-    if docker run --rm --network host -v "$(pwd)/.kube/config:/kube/config:ro" \
-      bitnami/kubectl --kubeconfig=/kube/config get pods -n monitoring 2>/dev/null | grep -q grafana; then
-      ok "stack monitoring"
-    else
-      ko "stack monitoring"
-    fi
-  else
-    ko "kubeconfig .kube/config absent"
-  fi
 fi
 
 echo ""

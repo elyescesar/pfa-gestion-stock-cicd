@@ -3,7 +3,7 @@
 
 \section{Stack et organisation du code}
 
-Le backend est implémenté en \textbf{Python 3.12} avec \textbf{FastAPI 0.15}. Les dépendances principales figurent dans \texttt{backend/requirements.txt} : SQLAlchemy~2, Alembic, Pydantic Settings, \texttt{python-jose}, \texttt{passlib}/bcrypt, \texttt{prometheus-fastapi-instrumentator}, boto3.
+Le backend est implémenté en \textbf{Python 3.12} avec \textbf{FastAPI 0.15}. Les dépendances principales figurent dans \texttt{backend/requirements.txt} : SQLAlchemy~2, Alembic, Pydantic Settings, \texttt{python-jose}, \texttt{passlib}/bcrypt, \texttt{prometheus-fastapi-instrumentator}.
 
 L'arborescence \texttt{backend/app/} suit une séparation routes / schémas / modèles / services :
 
@@ -12,14 +12,14 @@ L'arborescence \texttt{backend/app/} suit une séparation routes / schémas / mo
   \item \texttt{schemas/} — modèles Pydantic entrée/sortie ;
   \item \texttt{routes/} — routeurs FastAPI par domaine ;
   \item \texttt{securite/} — JWT et hachage des mots de passe ;
-  \item \texttt{services/} — logique métier (stock, export S3).
+  \item \texttt{services/} — logique métier (stock).
 \end{itemize}
 
 Le point d'entrée \texttt{main.py} instancie l'application, configure CORS, monte les routeurs sous le préfixe \texttt{/api/v1}, expose \texttt{/health} et instrumente \texttt{/metrics}.
 
 \section{Configuration}
 
-La classe \texttt{Parametres} (\texttt{config.py}) charge les variables d'environnement via \texttt{pydantic-settings} : \texttt{DATABASE\_URL}, \texttt{SECRET\_JWT}, \texttt{CORS\_ORIGINS}, paramètres AWS/LocalStack, durée du jeton JWT, algorithme HS256.
+La classe \texttt{Parametres} (\texttt{config.py}) charge les variables d'environnement via \texttt{pydantic-settings} : \texttt{DATABASE\_URL}, \texttt{SECRET\_JWT}, \texttt{CORS\_ORIGINS}, durée du jeton JWT, algorithme HS256.
 
 En mode test (\texttt{MODE\_TEST=1}), le cycle de vie de l'application ne crée pas les tables ni n'exécute le seed global : les tests utilisent une base SQLite en mémoire avec fixtures dédiées (\texttt{tests/conftest.py}).
 
@@ -123,15 +123,10 @@ Tous les endpoints métier sont préfixés par \texttt{/api/v1}. Le tableau~\ref
     GET & \texttt{/produits/alertes} & Oui & Sous seuil \\
     GET/POST & \texttt{/mouvements} & Oui & Historique / création \\
     GET & \texttt{/tableau-de-bord} & Oui & Agrégats \\
-    POST & \texttt{/exports/produits-csv} & Admin & Export S3 \\
     GET & \texttt{/health}, \texttt{/metrics} & Non & Sonde / Prometheus \\
     \bottomrule
   \end{tabular}
 \end{table}
-
-\section{Export S3}
-
-\texttt{services/export\_s3.py} génère un CSV des produits en mémoire et l'envoie via boto3 vers le bucket configuré (\texttt{pfa-stock-exports}). Le client boto3 utilise \texttt{AWS\_ENDPOINT\_URL} pour cibler LocalStack en local. L'endpoint \texttt{POST /exports/produits-csv} vérifie le rôle administrateur avant exécution.
 
 \section{Initialisation des données}
 

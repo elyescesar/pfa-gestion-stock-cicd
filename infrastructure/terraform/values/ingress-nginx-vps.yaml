@@ -1,0 +1,11 @@
+controller:
+  hostPort:
+    enabled: false
+  service:
+    type: LoadBalancer
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+  admissionWebhooks:
+    enabled: false

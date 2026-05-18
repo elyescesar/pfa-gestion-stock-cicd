@@ -56,7 +56,7 @@ Le nom produit affiché est \stockflow{} : thème sombre, accents cyan, typograp
   \item fonction \texttt{appelApi<T>()} ajoutant l'en-tête \texttt{Authorization} et gérant les erreurs 401 (déconnexion implicite).
 \end{itemize}
 
-En mode cluster, le frontend est servi depuis \texttt{http://localhost} et les appels partent vers \texttt{http://localhost/api/...} via l'Ingress — d'où le build avec \texttt{VITE\_API\_URL=http://localhost}.
+En production, le build utilise \texttt{VITE\_API\_URL=https://api.pfa.elyes.dev} : les appels REST ciblent directement le sous-domaine API.
 
 \section{Pages fonctionnelles}
 
@@ -117,7 +117,7 @@ Le \texttt{frontend/Dockerfile} est multi-stage :
   \item Stage runtime : \texttt{nginx:alpine}, copie de \texttt{dist/} et \texttt{nginx.conf}.
 \end{enumerate}
 
-\texttt{nginx.conf} configure le fallback SPA (\texttt{try\_files}) et, en Compose, un proxy \texttt{/api/} vers le service \api{} — en cluster, c'est l'Ingress qui assume ce routage.
+\texttt{nginx.conf} configure le fallback SPA (\texttt{try\_files}). En Compose, un proxy \texttt{/api/} optionnel existe ; en production, le navigateur appelle l'API sur un hôte distinct.
 
 \section{Parcours utilisateur et états d'interface}
 

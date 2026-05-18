@@ -1,0 +1,26 @@
+# Production values — image repos/tags and secrets are set by GitHub Actions deploy.yml
+namespace: pfa-stock
+
+imageApi:
+  pullPolicy: Always
+
+imageWeb:
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-secret
+
+ingress:
+  className: nginx
+  hosts:
+    web: pfa.elyes.dev
+    api: api.pfa.elyes.dev
+  tls:
+    enabled: false
+  clusterIssuer: letsencrypt-prod
+
+corsOrigins: https://pfa.elyes.dev
+
+monitoring:
+  enabled: true
+  releaseLabel: kube-prometheus-stack

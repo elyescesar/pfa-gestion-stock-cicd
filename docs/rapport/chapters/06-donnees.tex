@@ -7,7 +7,7 @@ Toutes les données métier résident dans \textbf{PostgreSQL 16}. Le moteur est
 \begin{itemize}
   \item les transactions ACID (mouvement + mise à jour quantité en un seul commit) ;
   \item les contraintes d'intégrité (unicité SKU, clés étrangères) ;
-  \item la compatibilité entre dev (Compose), CI (service container, tests SQLite séparés) et cluster (StatefulSet).
+  \item la compatibilité entre dev (Compose), CI (service container, tests SQLite séparés) et production (StatefulSet Kubernetes).
 \end{itemize}
 
 \section{Schéma détaillé}
@@ -59,7 +59,7 @@ Deux mécanismes coexistent :
   \item \textbf{Alembic} : migration \texttt{001\_initial} versionnée pour documentation et pipelines futurs (\texttt{alembic upgrade head}).
 \end{enumerate}
 
-En cluster, le StatefulSet PostgreSQL monte un volume persistant (\texttt{postgres.storage: 1Gi} dans \texttt{values.yaml}) : les données survivent au redémarrage du pod sous réserve du PVC.
+En production, le StatefulSet PostgreSQL monte un volume persistant (\texttt{postgres.storage: 1Gi} dans \texttt{values.yaml}) : les données survivent au redémarrage du pod sous réserve du PVC.
 
 \section{Données de démonstration}
 
@@ -120,7 +120,7 @@ Le schéma initial ne déclare pas d'index secondaires explicites au-delà des c
 
 \section{Comparaison SQLite (tests) et PostgreSQL (runtime)}
 
-Les tests unitaires (\texttt{backend/tests/}) utilisent SQLite en mémoire : le dialecte SQLAlchemy reste identique pour les opérations CRUD simples, mais certaines subtilités (types, contraintes) diffèrent. Le runtime Compose et cluster cible PostgreSQL 16 ; c'est la référence pour les types \texttt{SERIAL}, \texttt{TEXT} et le comportement transactionnel réel.
+Les tests unitaires (\texttt{backend/tests/}) utilisent SQLite en mémoire : le dialecte SQLAlchemy reste identique pour les opérations CRUD simples, mais certaines subtilités (types, contraintes) diffèrent. Le runtime Compose et production cible PostgreSQL 16 ; c'est la référence pour les types \texttt{SERIAL}, \texttt{TEXT} et le comportement transactionnel réel.
 
 \section{Cohérence et limites}
 
@@ -128,5 +128,4 @@ Les tests unitaires (\texttt{backend/tests/}) utilisent SQLite en mémoire : le 
   \item Pas de verrouillage pessimiste explicite : en concurrence élevée, deux sorties simultanées pourraient nécessiter \texttt{SELECT FOR UPDATE} ; le périmètre actuel suppose une charge modérée.
   \item Pas de soft-delete : les DELETE sont physiques (réservés admin).
   \item Pas de réplication PostgreSQL en local : single instance.
-  \item Les exports CSV ne modifient pas le schéma : ils lisent un snapshot des produits au moment de l'appel admin.
 \end{itemize}

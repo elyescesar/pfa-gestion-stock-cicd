@@ -10,8 +10,28 @@ resource "kubernetes_namespace" "ingress_nginx" {
   }
 }
 
+resource "kubernetes_namespace" "cert_manager" {
+  count = var.coolify_coexist ? 0 : 1
+
+  metadata {
+    name = "cert-manager"
+  }
+}
+
 resource "kubernetes_namespace" "pfa_stock" {
   metadata {
     name = var.namespace_app
+  }
+}
+
+resource "kubernetes_namespace" "pgadmin" {
+  metadata {
+    name = "pgadmin"
+  }
+}
+
+resource "kubernetes_namespace" "kubernetes_dashboard" {
+  metadata {
+    name = "kubernetes-dashboard"
   }
 }

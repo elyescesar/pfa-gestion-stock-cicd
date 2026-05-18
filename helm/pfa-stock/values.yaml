@@ -10,6 +10,8 @@ imageWeb:
   tag: latest
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+
 postgres:
   user: stock
   password: stock
@@ -25,15 +27,16 @@ web:
   replicas: 1
 
 ingress:
-  host: localhost
   className: nginx
+  hosts:
+    web: localhost
+    api: localhost
+  tls:
+    enabled: false
+  clusterIssuer: letsencrypt-prod
 
 secretJwt: change-me-local-only
 corsOrigins: http://localhost,http://localhost:3000
-
-aws:
-  endpoint: http://localstack.pfa-stock.svc.cluster.local:4566
-  bucket: pfa-stock-exports
 
 monitoring:
   enabled: true

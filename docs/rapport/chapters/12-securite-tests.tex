@@ -3,7 +3,7 @@
 
 \section{Modèle de menace (périmètre local)}
 
-Le déploiement documenté cible un \textbf{environnement local de démonstration}. Les menaces principales sont : accès non autorisé à l'API, fuite de secrets dans Git, injection SQL (mitigée par ORM), et configuration CORS trop permissive.
+Le déploiement couvre le \textbf{développement local} et la \textbf{production sur VPS dédié} (TLS, secrets GitHub). Les menaces principales sont : accès non autorisé à l'API, fuite de secrets dans Git, injection SQL (mitigée par ORM), et configuration CORS trop permissive.
 
 \section{Authentification et autorisation}
 
@@ -11,7 +11,7 @@ Le déploiement documenté cible un \textbf{environnement local de démonstratio
   \item Mots de passe hashés bcrypt — pas de stockage clair ;
   \item JWT signé HS256 — secret \texttt{SECRET\_JWT} injecté par variable d'environnement ou Secret K8s ;
   \item Durée de vie configurable (\texttt{duree\_token\_minutes}) ;
-  \item Contrôles de rôle sur DELETE et export CSV (vérification \texttt{role == admin}).
+  \item Contrôles de rôle sur DELETE (vérification \texttt{role == admin}).
 \end{itemize}
 
 \section{Secrets et configuration}
@@ -36,11 +36,11 @@ Le déploiement documenté cible un \textbf{environnement local de démonstratio
 
 \section{CORS}
 
-\texttt{CORS\_ORIGINS} liste les origines autorisées (frontend dev sur :3000, cluster sur \texttt{http://localhost}). En production, la liste serait restreinte au domaine client réel.
+\texttt{CORS\_ORIGINS} liste les origines autorisées (dev : \texttt{localhost:3000} ; production : \texttt{https://pfa.elyes.dev}).
 
 \section{Réseau Kubernetes}
 
-Les Services clusterIP ne sont pas exposés sauf via Ingress (80/443). LocalStack et PostgreSQL ne sont pas publiés sur l'hôte en mode cluster (sauf port-forward manuel pour debug).
+Les Services clusterIP ne sont pas exposés sauf via Ingress (80/443). L'API n'écoute pas sur les ports hôte 8000, 6001 ou 6002.
 
 \section{Tests automatisés}
 
@@ -76,9 +76,7 @@ Test de rendu de la page connexion avec providers Auth/Toast et MemoryRouter.
 
 \texttt{scripts/verifier.sh} enchaîne :
 \begin{itemize}
-  \item mode \texttt{dev} ou \texttt{cluster} ;
-  \item curl sur \texttt{/health}, login, liste produits, page web ;
-  \item en cluster : vérification pods Running.
+  \item curl sur \texttt{/health}, login, liste produits, page web (stack dev locale).
 \end{itemize}
 
 \section{Analyse statique}

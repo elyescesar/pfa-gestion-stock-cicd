@@ -28,6 +28,10 @@ spec:
       labels:
         app: api
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: api
           image: "{{ .Values.imageApi.repository }}:{{ .Values.imageApi.tag }}"
