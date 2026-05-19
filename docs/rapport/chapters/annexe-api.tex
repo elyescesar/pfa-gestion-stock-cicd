@@ -7,6 +7,8 @@ Préfixe commun : \texttt{/api/v1}. Authentification : \texttt{Authorization: Be
 
 \begin{table}[htbp]
   \centering
+  \caption{Endpoints d'authentification}
+  \label{tab:api-auth}
   \small
   \begin{tabular}{@{}llp{6cm}@{}}
     \toprule
@@ -67,7 +69,7 @@ Réponse \texttt{200} :
 \begin{lstlisting}[language=Python]
 POST /api/v1/produits
 {
-  "nom": "Clavier mécanique",
+  "nom": "Clavier mecanique",
   "reference_sku": "KB-MECH-01",
   "quantite": 25,
   "seuil_alerte": 5,

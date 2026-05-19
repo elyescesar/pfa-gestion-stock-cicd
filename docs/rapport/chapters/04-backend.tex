@@ -100,7 +100,7 @@ def creer_mouvement(session, donnees, id_utilisateur):
         produit.quantite, donnees.type_mouvement, donnees.quantite)
     if nouvelle_quantite < 0:
         raise HTTPException(status_code=400, detail="stock_insuffisant")
-    # ... commit mouvement + mise à jour produit
+    # ... commit mouvement + mise a jour produit
 \end{lstlisting}
 
 \section{Surface API REST}

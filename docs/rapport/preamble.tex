@@ -25,10 +25,13 @@
   urlcolor=blue!70!black,
   pdftitle={StockFlow — Rapport technique},
 }
+\usepackage{bookmark}
 
 \usepackage{listings}
+\usepackage{listingsutf8}
 \definecolor{codebg}{rgb}{0.97,0.98,0.99}
 \lstset{
+  inputencoding=utf8,
   backgroundcolor=\color{codebg},
   frame=single,
   breaklines=true,
@@ -62,10 +65,6 @@
   line/.style={-{Stealth[length=2.2mm]}, thick},
   dashedline/.style={-{Stealth[length=2.2mm]}, thick, dashed},
 }
-
-\usepackage{titlesec}
-\titleformat{\chapter}[display]{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{12pt}{\Huge}
-\titlespacing*{\chapter}{0pt}{0pt}{24pt}
 
 \usepackage{fancyhdr}
 \pagestyle{fancy}

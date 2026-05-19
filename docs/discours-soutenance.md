@@ -2,25 +2,28 @@
 
 **Durée cible : 10 à 12 minutes** (hors questions et démo optionnelle)  
 **Slides : 13** — fichier `presentation-soutenance.html`  
+**Intervenants :** Ghorbel Elyes · Souissi Mohamed Aziz — CCV 2-2  
 **Conseil :** parler lentement sur les diagrammes. La démo live n’est pas dans le fil — uniquement si le jury la demande après les questions.
+
+**Répartition :** slides impairs → **Elyes** · slides pairs → **Aziz** · slide 1 ouverture commune · slide 13 clôture partagée.
 
 ---
 
 ## Slide 1 — StockFlow (≈ 45 s)
 
-Bonjour,
+**[Elyes]** Bonjour,
 
-Je vais vous présenter **StockFlow** : une application de gestion de stock couplée à une chaîne DevOps complète.
+**[Aziz]** Nous allons vous présenter **StockFlow** : une application de gestion de stock couplée à une chaîne DevOps complète.
 
-L’objectif n’est pas seulement d’avoir une interface pour gérer des produits, mais de montrer qu’on peut **livrer, tester, déployer et superviser** tout ça de façon **reproductible** — avec **Docker uniquement** sur la machine de démo, sans installer Python, Node ou kubectl à la main sur l’hôte.
+**[Elyes]** L’objectif n’est pas seulement d’avoir une interface pour gérer des produits, mais de montrer qu’on peut **livrer, tester, déployer et superviser** tout ça de façon **reproductible** — avec **Docker uniquement** sur la machine de démo, sans installer Python, Node ou kubectl à la main sur l’hôte.
 
-La validation repose sur **deux chemins complémentaires** : développement avec **Docker Compose** (dont **Adminer** pour visualiser PostgreSQL), et orchestration avec **minikube** en local. Le pipeline **GitHub Actions** valide le tout, y compris un déploiement Helm éphémère sur minikube. Un déploiement VPS reste documenté mais **optionnel** — il n’est pas requis pour la soutenance.
+**[Aziz]** La validation repose sur **deux chemins complémentaires** : développement avec **Docker Compose** (dont **Adminer** pour visualiser PostgreSQL), et orchestration avec **minikube** en local. Le pipeline **GitHub Actions** valide le tout, y compris un déploiement Helm éphémère sur minikube. Un déploiement VPS reste documenté mais **optionnel** — il n’est pas requis pour la soutenance.
 
 ---
 
 ## Slide 2 — Plan (≈ 30 s)
 
-Voici le fil de la présentation.
+**[Aziz]** Voici le fil de la présentation.
 
 D’abord l’**architecture applicative** et ce que fait le produit.
 
@@ -28,13 +31,13 @@ Ensuite l’**infrastructure** : Compose dev, cluster **minikube**, Terraform en
 
 Puis les **choix techniques** et surtout le **CI/CD**, avec le détail de chaque job.
 
-On finira par l’**observabilité**, un aperçu de l’**interface**, puis la **conclusion**. Si vous voulez une démonstration en direct ensuite, je pourrai l’enchaîner sur demande.
+On finira par l’**observabilité**, un aperçu de l’**interface**, puis la **conclusion**. Si vous voulez une démonstration en direct ensuite, nous pourrons l’enchaîner sur demande.
 
 ---
 
 ## Slide 3 — Architecture applicative (≈ 1 min 15)
 
-Sur ce schéma, le flux est classique en trois tiers.
+**[Elyes]** Sur ce schéma, le flux est classique en trois tiers.
 
 Le navigateur charge une **SPA React** — build Vite, servie par **nginx** en production.
 
@@ -48,7 +51,7 @@ Côté transversal : **Alembic** pour les migrations, endpoint **`/health`** pou
 
 ## Slide 4 — Docker Compose (≈ 1 min)
 
-En développement, tout est dans **`docker/compose.dev.yml`**, sur un réseau bridge **`pfa`**.
+**[Aziz]** En développement, tout est dans **`docker/compose.dev.yml`**, sur un réseau bridge **`pfa`**.
 
 Quatre services : **postgres** avec healthcheck, **api** qui attend que la base soit prête, **web** qui attend l’API, et **Adminer** pour visualiser PostgreSQL dans le navigateur.
 
@@ -62,7 +65,7 @@ La commande d’entrée est **`make dev`** : aucun runtime à installer sur l’
 
 ## Slide 5 — Kubernetes (≈ 1 min 30)
 
-Pour la validation Kubernetes, on monte un cluster **minikube** (driver Docker) avec **`make cluster`**.
+**[Elyes]** Pour la validation Kubernetes, on monte un cluster **minikube** (driver Docker) avec **`make cluster`**.
 
 Le diagramme montre trois zones.
 
@@ -80,7 +83,7 @@ Point important : le **même chart Helm** et les mêmes **`values-minikube.yaml`
 
 ## Slide 6 — Terraform (≈ 1 min 15)
 
-Terraform décrit l’infrastructure de façon **déclarative** dans **`infrastructure/terraform/`** : ingress, monitoring, outils sur un cluster Kubernetes.
+**[Aziz]** Terraform décrit l’infrastructure de façon **déclarative** dans **`infrastructure/terraform/`** : ingress, monitoring, outils sur un cluster Kubernetes.
 
 En **CI**, on exécute **`terraform fmt -check`** et **`terraform validate`** — pas d’**apply** sur les runners GitHub. Ça prouve que le code IaC est syntaxiquement correct et reviewable en pull request.
 
@@ -94,7 +97,7 @@ Le **dashboard Grafana** applicatif est versionné en JSON et injecté via **Con
 
 ## Slide 7 — Stack applicative (≈ 1 min)
 
-Quelques mots sur les choix côté application.
+**[Elyes]** Quelques mots sur les choix côté application.
 
 **FastAPI** : async, OpenAPI automatique sur `/docs`, écosystème Python mature pour une API métier qu’on fait évoluer vite.
 
@@ -108,7 +111,7 @@ Quelques mots sur les choix côté application.
 
 ## Slide 8 — Stack infrastructure (≈ 1 min 15)
 
-Côté infra :
+**[Aziz]** Côté infra :
 
 **minikube** : cluster Kubernetes local reproductible, addon ingress, **`minikube dashboard`**, UX familière pour la démo. Le job CI recrée un cluster éphémère sur le runner.
 
@@ -126,7 +129,7 @@ Côté infra :
 
 ## Slide 9 — CI/CD vue d’ensemble (≈ 1 min)
 
-Le pipeline est dans **`.github/workflows/ci.yml`**.
+**[Elyes]** Le pipeline est dans **`.github/workflows/ci.yml`**.
 
 À chaque push ou PR sur **main** ou **develop**, **six jobs tournent en parallèle** — pas un seul job monolithique qui met cinq minutes à échouer à la fin.
 
@@ -147,7 +150,7 @@ L’idée : feedback rapide, périmètres séparés, chaque couche de la stack e
 
 ## Slide 10 — CI/CD détail (≈ 1 min 30)
 
-Je détaille le **pourquoi** de chaque job — c’est le cœur de la démarche DevOps du projet.
+**[Aziz]** Je détaille le **pourquoi** de chaque job — c’est le cœur de la démarche DevOps du projet.
 
 **Backend** : **ruff** pour le lint, **pytest** avec un vrai **PostgreSQL en service container** — ce ne sont pas des mocks ; on teste l’intégration DB comme en prod.
 
@@ -167,7 +170,7 @@ En résumé : on ne merge pas du code, des manifests ou des images non vérifié
 
 ## Slide 11 — Observabilité (≈ 1 min)
 
-Pour le monitoring : l’API expose **`/metrics`** via l’instrumentateur Prometheus.
+**[Elyes]** Pour le monitoring : l’API expose **`/metrics`** via l’instrumentateur Prometheus.
 
 Le **ServiceMonitor** dans le chart porte le label `release: kube-prometheus-stack` pour que l’operator Prometheus le découvre.
 
@@ -183,7 +186,7 @@ Le monitoring complet (kube-prometheus-stack) n’est **pas** installé dans le 
 
 ## Slide 12 — Interface (≈ 45 s)
 
-Côté produit, l’interface **StockFlow** est une app React moderne : tableau de bord avec KPIs, CRUD produits et catégories, timeline des mouvements, page alertes quand le stock passe sous le seuil.
+**[Aziz]** Côté produit, l’interface **StockFlow** est une app React moderne : tableau de bord avec KPIs, CRUD produits et catégories, timeline des mouvements, page alertes quand le stock passe sous le seuil.
 
 Les trois colonnes de la slide résument le **parcours utilisateur** et les **URLs de démo** — pas de screenshots, démo live sur demande.
 
@@ -197,13 +200,13 @@ Compte démo : **admin@stock.tn** / **Admin123!** — tout est documenté dans *
 
 ## Slide 13 — Conclusion (≈ 30 s)
 
-Pour conclure :
+**[Elyes]** Pour conclure :
 
 **StockFlow** combine une application de gestion de stock utilisable et une chaîne DevOps bout en bout — Docker Compose, Kubernetes minikube, IaC, monitoring, CI — **validée sans serveur de production obligatoire**.
 
 Tout est reproductible depuis le dépôt : **`make dev`** pour le chemin Docker, **`make cluster`** pour le chemin Kubernetes, **GitHub Actions** pour la garantie continue. Un déploiement VPS reste une **perspective** documentée, pas une condition de validation.
 
-Merci pour votre attention. Je réponds à vos questions — et si vous souhaitez une **démonstration live**, je peux enchaîner tout de suite.
+**[Aziz]** Merci pour votre attention. Nous répondons à vos questions — et si vous souhaitez une **démonstration live**, nous pouvons enchaîner tout de suite.
 
 ---
 
@@ -213,10 +216,10 @@ Merci pour votre attention. Je réponds à vos questions — et si vous souhaite
 
 **Ordre recommandé** (voir **`docs/demo-soutenance.md`**) :
 
-1. **GitHub Actions** — onglet Actions, workflow CI vert (6 jobs).
-2. **Docker** — `make dev` : app sur **`http://localhost:3000`**, **Adminer** sur **`:8080`**, montrer une table PostgreSQL.
-3. **Kubernetes** — cluster pré-démarré (`make cluster`) : `kubectl get pods -A`, **`http://pfa.test`**, **Grafana** sur **`http://grafana.test`**, **pgAdmin** sur **`http://pgadmin.test`**, **`minikube dashboard -p pfa`**.
-4. **Architecture** — même chart Helm en CI minikube et en local ; Terraform validé en CI.
+1. **GitHub Actions** — onglet Actions, workflow CI vert (6 jobs). *(Elyes ou Aziz)*
+2. **Docker** — `make dev` : app sur **`http://localhost:3000`**, **Adminer** sur **`:8080`**, montrer une table PostgreSQL. *(Aziz)*
+3. **Kubernetes** — cluster pré-démarré (`make cluster`) : `kubectl get pods -A`, **`http://pfa.test`**, **Grafana** sur **`http://grafana.test`**, **pgAdmin** sur **`http://pgadmin.test`**, **`minikube dashboard -p pfa`**. *(Elyes)*
+4. **Architecture** — même chart Helm en CI minikube et en local ; Terraform validé en CI. *(Aziz)*
 
 Commandes utiles : `make dev`, `make links`, `make cluster`, `make demo-k8s`, `make cluster-down`.
 
@@ -225,6 +228,16 @@ Commandes utiles : `make dev`, `make links`, `make cluster`, `make demo-k8s`, `m
 ---
 
 ## Phrases de secours (questions fréquentes)
+
+| Sujet | Qui répond (suggestion) |
+|-------|-------------------------|
+| Pourquoi pas Docker Compose en prod ? | Aziz |
+| Pourquoi minikube et pas kind ? | Elyes |
+| Pourquoi pas de déploiement auto sur push ? | Aziz |
+| Secrets en clair dans values.yaml ? | Elyes |
+| Coût cloud ? | Aziz |
+| Temps de `make cluster` ? | Elyes |
+| Visualisation BDD ? | Aziz |
 
 **Pourquoi pas Docker Compose en prod ?**  
 Compose convient au dev ; Kubernetes apporte les probes, le scaling, les ServiceMonitor et l’Ingress — ce qu’on veut montrer en environnement orchestré.
@@ -256,3 +269,4 @@ Comptez 10 à 15 minutes la première fois (monitoring + app). Pré-démarrer av
 - [ ] Onglet GitHub Actions ouvert en arrière-plan (preuve CI live)
 - [ ] Grafana testé une fois : `http://grafana.test` après `make cluster`
 - [ ] Adminer testé : `http://localhost:8080` après `make dev`
+- [ ] Répartition relue : Elyes (1·3·5·7·9·11·13 début) · Aziz (2·4·6·8·10·12·13 fin)
