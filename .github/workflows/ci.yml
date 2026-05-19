@@ -78,6 +78,7 @@ jobs:
       - uses: azure/setup-helm@v4
       - run: helm lint helm/pfa-stock
       - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-minikube.yaml > /dev/null
+      - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-minikube.yaml -f helm/pfa-stock/values-ci.yaml > /dev/null
       - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-prod.yaml > /dev/null
 
   kubernetes:
@@ -112,6 +113,7 @@ jobs:
             --namespace pfa-stock \
             --create-namespace \
             -f helm/pfa-stock/values-minikube.yaml \
+            -f helm/pfa-stock/values-ci.yaml \
             --wait --timeout 10m
 
       - name: Smoke test API (in-cluster)
