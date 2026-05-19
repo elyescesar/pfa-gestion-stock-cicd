@@ -1,0 +1,7 @@
+# Kubernetes Dashboard on minikube — access via kubectl port-forward (see demo-soutenance.md)
+app:
+  ingress:
+    enabled: false
+kong:
+  proxy:
+    type: ClusterIP

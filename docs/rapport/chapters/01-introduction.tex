@@ -5,7 +5,7 @@
 
 La gestion des stocks reste un besoin récurrent dans les PME, ateliers et entrepôts de taille modeste : suivre les quantités disponibles, enregistrer les entrées et sorties, anticiper les ruptures et disposer d'une vue consolidée pour la décision. Les tableurs partagés atteignent rapidement leurs limites (concurrence d'édition, absence d'API, traçabilité faible, déploiement non industrialisé).
 
-\stockflow{} répond à ce besoin par une \textbf{application web full-stack} couplée à une \textbf{chaîne DevOps reproductible} : le même dépôt source permet de développer localement (Docker Compose), de valider automatiquement le code (CI) et de déployer en production sur un cluster \textbf{k3s} hébergé sur un VPS dédié, supervisé via Prometheus et Grafana.
+\stockflow{} répond à ce besoin par une \textbf{application web full-stack} couplée à une \textbf{chaîne DevOps reproductible} : le même dépôt source permet de développer localement (Docker Compose + Adminer), de valider automatiquement le code (GitHub Actions, incluant un déploiement éphémère sur \textbf{minikube}) et de démontrer l'orchestration Kubernetes (Helm, Prometheus, Grafana, dashboard) via \texttt{make cluster}.
 
 \section{Périmètre du projet}
 
@@ -21,11 +21,11 @@ Le périmètre technique couvre :
 \begin{itemize}
   \item API REST FastAPI et interface React (Vite, TypeScript, Tailwind) ;
   \item persistance PostgreSQL~16 ;
-  \item conteneurisation Docker et orchestration Docker Compose pour le développement ;
-  \item déploiement production sur \textbf{k3s} (VPS dédié) via chart Helm \texttt{pfa-stock} ;
-  \item provisionnement Terraform (ingress, cert-manager, monitoring, pgAdmin, dashboard K8s) ;
+  \item conteneurisation Docker et orchestration Docker Compose pour le développement (Adminer pour la BDD) ;
+  \item validation Kubernetes via \textbf{minikube} local et job CI (\texttt{values-minikube.yaml}) ;
+  \item chart Helm \texttt{pfa-stock} et Terraform (validate CI ; apply prod optionnel) ;
   \item stack \textbf{kube-prometheus-stack} avec dashboard Grafana versionné ;
-  \item pipelines GitHub Actions : CI (tests, validation) et CD (GHCR + Helm).
+  \item pipelines GitHub Actions : CI (tests, minikube, validation IaC).
 \end{itemize}
 
 \section{Organisation du dépôt}
@@ -48,7 +48,8 @@ Le dépôt suit une séparation nette des responsabilités (tableau~\ref{tab:str
     \texttt{monitoring/} & Valeurs Prometheus/Grafana et dashboard JSON \\
     \texttt{scripts/} & Automatisation démarrage et vérification \\
     \texttt{.github/workflows/} & CI et déploiement production \\
-    \texttt{docs/vps-setup.md} & Guide d'installation du VPS PFA \\
+    \texttt{docs/demo-soutenance.md} & Guide validation soutenance (Compose + minikube) \\
+    \texttt{docs/vps-setup.md} & Production VPS optionnelle (annexe) \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -58,11 +59,12 @@ Le dépôt suit une séparation nette des responsabilités (tableau~\ref{tab:str
 Deux modes coexistent :
 
 \begin{description}
-  \item[\texttt{make dev}] Stack Docker Compose : frontend sur le port~3000, API sur le port~8000. Boucle de développement rapide sur la machine du développeur.
-  \item[Push sur \texttt{main}] GitHub Actions build les images, les pousse sur GHCR et exécute \texttt{helm upgrade} sur le cluster k3s du VPS dédié (\texttt{pfa.elyes.dev}, sous-domaines associés).
+  \item[\texttt{make dev}] Stack Docker Compose : frontend sur le port~3000, API sur le port~8000, Adminer sur le port~8080.
+  \item[\texttt{make cluster}] Cluster \textbf{minikube} local : chart Helm, kube-prometheus-stack, dashboard Kubernetes (voir \texttt{docs/demo-soutenance.md}).
+  \item[CI GitHub Actions] Six jobs dont \texttt{kubernetes} (minikube éphémère + smoke test \texttt{/health}).
 \end{description}
 
-Le VPS de production est \textbf{séparé} de tout autre hébergement (ex.\ Coolify pour un client) afin d'éviter tout conflit de ports ou de configuration.
+Un déploiement production sur VPS (\texttt{deploy.yml}, \texttt{docs/vps-setup.md}) reste documenté comme \textbf{perspective optionnelle}, hors périmètre de validation devant le jury.
 
 \section{Organisation du rapport}
 
@@ -73,5 +75,4 @@ Le chapitre~\ref{ch:besoin} formalise les objectifs et les acteurs. Le chapitre~
 \begin{itemize}
   \item Les chemins de fichiers sont relatifs à la racine du dépôt sauf mention contraire.
   \item Les identifiants de démonstration (\texttt{admin@stock.tn}, etc.) sont documentés à titre opérationnel ; en production ils doivent être remplacés et stockés dans un gestionnaire de secrets (GitHub Secrets, Secrets Kubernetes).
-  \item Les captures d'écran de l'interface peuvent être générées via \texttt{make demo} (local) ou l'URL de production après déploiement.
 \end{itemize}

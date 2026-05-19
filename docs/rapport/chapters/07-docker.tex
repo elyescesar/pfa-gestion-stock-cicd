@@ -3,7 +3,7 @@
 
 \section{Rôle de Docker dans le projet}
 
-Docker matérialise l'environnement d'exécution : mêmes versions de runtime, mêmes dépendances système, isolation des services. Le fichier \texttt{docker/compose.dev.yml} couvre le développement local ; les images construites en CI sont poussées vers GHCR pour la production.
+Docker matérialise l'environnement d'exécution : mêmes versions de runtime, mêmes dépendances système, isolation des services. Le fichier \texttt{docker/compose.dev.yml} couvre le développement local (dont Adminer pour visualiser PostgreSQL) ; les images construites en CI alimentent minikube et, optionnellement, GHCR pour un VPS.
 
 \section{Docker Compose — développement}
 
@@ -20,6 +20,7 @@ Docker matérialise l'environnement d'exécution : mêmes versions de runtime, m
     postgres & postgres:16-alpine & 5432 & Base \texttt{stock\_db} \\
     api & build backend & 8000 & FastAPI \\
     web & build frontend & 3000→80 & nginx + SPA \\
+    adminer & adminer:4 & 8080 & Interface web PostgreSQL \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -41,15 +42,11 @@ Image basée sur \texttt{python:3.12-slim} : dépendances pip, \texttt{PYTHONPAT
 
 \section{Dockerfile frontend}
 
-Build multi-stage : \texttt{VITE\_API\_URL} figé au build. En dev : \texttt{http://localhost:8000} ; en production CI : \texttt{https://api.pfa.elyes.dev}.
+Build multi-stage : \texttt{VITE\_API\_URL} figé au build. En dev Compose : \texttt{http://localhost:8000} ; pour minikube : \texttt{http://api.pfa.test} (script \texttt{demarrer-cluster-minikube.sh}).
 
-\section{Images production (GHCR)}
+\section{Images et CI}
 
-Le workflow \texttt{deploy.yml} build et pousse :
-\begin{itemize}
-  \item \texttt{ghcr.io/<owner>/pfa-stock-api:<sha>} ;
-  \item \texttt{ghcr.io/<owner>/pfa-stock-web:<sha>}.
-\end{itemize}
+Le job \texttt{docker} de la CI valide les builds. Le job \texttt{kubernetes} charge les images dans minikube. Le workflow optionnel \texttt{deploy.yml} pousse vers GHCR pour un VPS.
 
 \section{Réseau et volumes}
 

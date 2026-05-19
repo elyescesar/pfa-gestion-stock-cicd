@@ -1,8 +1,11 @@
+# Deploy PFA Stock — production VPS (optionnel, hors périmètre soutenance)
+#
+# Déclenchement manuel uniquement. Nécessite secrets KUBECONFIG, SECRET_JWT, POSTGRES_PASSWORD.
+# Validation PFA : CI (ci.yml) + démo locale (docs/demo-soutenance.md).
+
 name: Deploy PFA Stock
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -91,7 +94,10 @@ jobs:
             --set-string postgres.password="${POSTGRES_PASSWORD}" \
             --wait --timeout 10m
 
-      - name: Smoke test API
+      - name: Smoke test API (in-cluster)
         run: |
-          sleep 15
-          curl -sf "https://api.pfa.elyes.dev/health"
+          kubectl rollout status deployment/api -n pfa-stock --timeout=5m
+          kubectl run smoke-api --rm -i --restart=Never -n pfa-stock \
+            --image=curlimages/curl:8.10.1 \
+            --command -- curl -sf "http://api:8000/health"
+          echo "In-cluster /health OK"

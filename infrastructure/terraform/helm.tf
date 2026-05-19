@@ -1,15 +1,5 @@
 locals {
-  ingress_values_file = var.coolify_coexist ? "ingress-nginx-coolify.yaml" : "ingress-nginx-vps.yaml"
-
-  grafana_ingress_coolify = {
-    enabled          = true
-    ingressClassName = "nginx"
-    hosts            = [var.grafana_host]
-    annotations      = {}
-    tls              = []
-  }
-
-  grafana_ingress_standalone = {
+  grafana_ingress = {
     enabled          = true
     ingressClassName = "nginx"
     hosts            = [var.grafana_host]
@@ -22,25 +12,7 @@ locals {
     }]
   }
 
-  grafana_ingress = var.coolify_coexist ? local.grafana_ingress_coolify : local.grafana_ingress_standalone
-
-  dashboard_ingress_coolify = {
-    enabled               = true
-    ingressClassName      = "nginx"
-    hosts                 = [var.dashboard_host]
-    annotations           = {}
-    useDefaultAnnotations = false
-    issuer = {
-      scope = "disabled"
-    }
-    tls = {
-      enabled    = false
-      secretName = ""
-      hosts      = []
-    }
-  }
-
-  dashboard_ingress_standalone = {
+  dashboard_ingress = {
     enabled               = true
     ingressClassName      = "nginx"
     hosts                 = [var.dashboard_host]
@@ -58,23 +30,7 @@ locals {
     }
   }
 
-  dashboard_ingress = var.coolify_coexist ? local.dashboard_ingress_coolify : local.dashboard_ingress_standalone
-
-  pgadmin_ingress_coolify = {
-    enabled          = true
-    ingressClassName = "nginx"
-    hosts = [{
-      host = var.pgadmin_host
-      paths = [{
-        path     = "/"
-        pathType = "Prefix"
-      }]
-    }]
-    annotations = {}
-    tls         = []
-  }
-
-  pgadmin_ingress_standalone = {
+  pgadmin_ingress_values = {
     enabled          = true
     ingressClassName = "nginx"
     hosts = [{
@@ -92,8 +48,6 @@ locals {
       hosts      = [var.pgadmin_host]
     }]
   }
-
-  pgadmin_ingress_values = var.coolify_coexist ? local.pgadmin_ingress_coolify : local.pgadmin_ingress_standalone
 }
 
 resource "helm_release" "ingress_nginx" {
@@ -107,7 +61,7 @@ resource "helm_release" "ingress_nginx" {
   wait             = true
 
   values = [
-    file("${path.module}/values/${local.ingress_values_file}")
+    file("${path.module}/values/ingress-nginx-vps.yaml")
   ]
 }
 
@@ -159,7 +113,6 @@ resource "helm_release" "pgadmin" {
 
 resource "helm_release" "kubernetes_dashboard" {
   name             = "kubernetes-dashboard"
-  # Repo GitHub Pages (kubernetes.github.io/dashboard) indisponible ; chart via release GitHub.
   chart            = "https://github.com/kubernetes-retired/dashboard/releases/download/kubernetes-dashboard-7.14.0/kubernetes-dashboard-7.14.0.tgz"
   namespace        = kubernetes_namespace.kubernetes_dashboard.metadata[0].name
   create_namespace = false

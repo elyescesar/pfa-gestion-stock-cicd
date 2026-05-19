@@ -11,8 +11,6 @@ resource "kubernetes_namespace" "ingress_nginx" {
 }
 
 resource "kubernetes_namespace" "cert_manager" {
-  count = var.coolify_coexist ? 0 : 1
-
   metadata {
     name = "cert-manager"
   }

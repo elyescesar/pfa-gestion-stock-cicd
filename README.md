@@ -1,47 +1,60 @@
 # PFA — Gestion de Stock
 
-Application de gestion d'inventaire : backend FastAPI, frontend React, PostgreSQL. Développement local via Docker Compose ; production sur **k3s** (même VPS que Coolify possible) déployée par **GitHub Actions**.
+Application de gestion d'inventaire : backend FastAPI, frontend React, PostgreSQL.  
+**Validation soutenance** : Docker Compose, GitHub Actions, minikube — voir [docs/demo-soutenance.md](docs/demo-soutenance.md).
 
 ## Prérequis locaux
 
-| Outil | Obligatoire |
-|-------|-------------|
-| Docker + Compose V2 | Oui |
-| Make | Recommandé |
-| curl | Recommandé |
+| Outil | Docker dev | minikube |
+|-------|------------|----------|
+| Docker + Compose V2 | Oui | Oui |
+| minikube, kubectl, helm | — | Oui |
+| Make, curl | Recommandé | Recommandé |
 
 ```bash
-make prerequis
+make prerequis       # Docker
+make prerequis-k8s   # minikube (make cluster)
 ```
 
-## Développement local
+## Développement local (Docker)
 
 ```bash
-make dev          # Stack Compose
+make dev          # Stack Compose (app + Adminer)
 make demo         # dev + tests + liens
 make links        # URLs et identifiants
 make destroy      # Arrêt
 ```
 
-| Service  | URL |
-|----------|-----|
+| Service | URL |
+|---------|-----|
 | Frontend | http://localhost:3000 |
-| API      | http://localhost:8000/docs |
-| Postgres | localhost:5432 |
+| API | http://localhost:8000/docs |
+| Adminer (BDD) | http://localhost:8080 |
+| Postgres | localhost:5432 (stock / stock / stock_db) |
 
-## Production (VPS k3s)
+## Kubernetes local (minikube)
 
-| URL | Service |
-|-----|---------|
-| https://pfa.elyes.dev | Application |
-| https://api.pfa.elyes.dev | API |
-| https://grafana.pfa.elyes.dev | Grafana |
-| https://pgadmin.pfa.elyes.dev | pgAdmin |
-| https://dashboard.pfa.elyes.dev | Kubernetes Dashboard |
+```bash
+make cluster        # minikube + monitoring + app Helm
+make demo-k8s       # cluster + smoke test
+make cluster-down   # arrêt
+```
 
-**Déploiement** : push sur `main` → workflow `Deploy PFA Stock` (build GHCR + Helm).
+Grafana, Prometheus, dashboard K8s : voir [docs/demo-soutenance.md](docs/demo-soutenance.md).
 
-**Première mise en place** : [docs/vps-setup.md](docs/vps-setup.md) (coexistence **Coolify + k3s** sur un seul VPS : Traefik Coolify garde 80/443, PFA en NodePort 30080).
+## Validation / soutenance
+
+| Exigence | Preuve |
+|----------|--------|
+| Docker | `make dev` + Adminer |
+| GitHub Actions | `.github/workflows/ci.yml` (6 jobs) |
+| Kubernetes | `helm/pfa-stock/` + job CI `kubernetes` + `make cluster` |
+| Monitoring | kube-prometheus-stack sur minikube |
+| IaC | `terraform validate` en CI |
+
+## Production optionnelle (VPS)
+
+Déploiement manuel via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) et [docs/vps-setup.md](docs/vps-setup.md) — **non requis** pour la soutenance.
 
 ## Identifiants démo (application)
 
@@ -55,39 +68,29 @@ make destroy      # Arrêt
 ```bash
 make help
 make dev
+make cluster
 make test
 make verify
 make lint
 make destroy
+make cluster-down
 ```
 
 ## CI / CD
 
 | Workflow | Rôle |
 |----------|------|
-| `.github/workflows/ci.yml` | Tests, lint, build, validate Terraform/Helm |
-| `.github/workflows/deploy.yml` | Production : images GHCR + `helm upgrade` |
+| `.github/workflows/ci.yml` | Tests, lint, build, Terraform, Helm, **minikube** |
+| `.github/workflows/deploy.yml` | Optionnel — GHCR + Helm VPS (`workflow_dispatch`) |
 
 ## Structure
 
 ```
 backend/                 API FastAPI
 frontend/                React + Vite
-docker/compose.dev.yml   Stack locale
-helm/pfa-stock/          Chart application
-infrastructure/terraform/  Plateforme K8s (ingress, monitoring, …)
+docker/compose.dev.yml   Stack locale (+ Adminer)
+helm/pfa-stock/          Chart application (+ values-minikube.yaml)
+infrastructure/terraform/  Plateforme K8s (validate CI ; apply prod optionnel)
 monitoring/              Prometheus / Grafana
-docs/vps-setup.md        Guide VPS pas à pas
+docs/demo-soutenance.md  Guide soutenance
 ```
-
-## Mapping exigences PFA
-
-| Exigence | Preuve |
-|----------|--------|
-| Git / GitHub | Dépôt + workflows Actions |
-| Tests | `backend/tests/`, `frontend/src/tests/` |
-| Docker | Dockerfiles + Compose dev |
-| Kubernetes | k3s VPS + `helm/pfa-stock/` |
-| IaC | `infrastructure/terraform/` |
-| Monitoring | kube-prometheus-stack + Grafana |
-| Pipeline CI/CD | `ci.yml` + `deploy.yml` |

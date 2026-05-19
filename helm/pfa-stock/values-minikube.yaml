@@ -1,0 +1,35 @@
+# Minikube / CI — images built locally and loaded with minikube image load
+namespace: pfa-stock
+
+imageApi:
+  repository: pfa-stock-api
+  tag: latest
+  pullPolicy: Never
+
+imageWeb:
+  repository: pfa-stock-web
+  tag: latest
+  pullPolicy: Never
+
+imagePullSecrets: []
+
+ingress:
+  className: nginx
+  hosts:
+    web: pfa.test
+    api: api.pfa.test
+  tls:
+    enabled: false
+
+secretJwt: change-me-minikube-only
+corsOrigins: http://pfa.test,http://localhost:3000
+
+monitoring:
+  enabled: true
+  releaseLabel: kube-prometheus-stack
+
+postgres:
+  user: stock
+  password: stock
+  database: stock_db
+  storage: 1Gi

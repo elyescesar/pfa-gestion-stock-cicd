@@ -1,0 +1,24 @@
+# ingress-nginx on minikube (docker driver)
+# - hostPort: reach ingress via minikube ip (see /etc/hosts)
+# - admissionWebhooks disabled: avoids kube-webhook-certgen pulls
+controller:
+  hostPort:
+    enabled: true
+    ports:
+      http: 80
+      https: 443
+  service:
+    type: NodePort
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: true
+  admissionWebhooks:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 90Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi

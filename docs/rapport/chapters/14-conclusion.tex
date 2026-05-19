@@ -3,24 +3,26 @@
 
 \section{Bilan}
 
-Le projet \stockflow{} démontre qu'une application métier de gestion de stock peut être livrée avec une chaîne DevOps complète : développement local Docker Compose, production sur k3s (VPS dédié), infrastructure as code, observabilité et CI/CD GitHub Actions.
+Le projet \stockflow{} démontre qu'une application métier de gestion de stock peut être livrée avec une chaîne DevOps complète : développement local Docker Compose (avec Adminer), validation Kubernetes sur minikube, observabilité Prometheus/Grafana, visualisation du cluster et CI/CD GitHub Actions — le tout \textbf{sans serveur de production obligatoire}.
 
 \section{Objectifs atteints}
 
 \begin{itemize}
   \item Fonctionnalités métier : catalogue, mouvements, alertes, tableau de bord ;
-  \item Développement local via \texttt{make dev} ;
-  \item Production sur VPS isolé (sans interférence Coolify) ;
-  \item CD automatique (GHCR + Helm) ;
-  \item Grafana, pgAdmin et dashboard Kubernetes en sous-domaines TLS.
+  \item Développement local via \texttt{make dev} (Adminer pour PostgreSQL) ;
+  \item Validation K8s via \texttt{make cluster} (minikube, Helm, Grafana, dashboard) ;
+  \item CI avec six jobs dont déploiement éphémère minikube ;
+  \item Infrastructure as Code (Terraform validate en CI ; apply VPS optionnel) ;
+  \item Déploiement production documenté (\texttt{deploy.yml} manuel, \texttt{docs/vps-setup.md}).
 \end{itemize}
 
 \section{Limites connues}
 
 \begin{itemize}
-  \item Cluster mono-nœud ;
+  \item Cluster mono-nœud (minikube ou k3s) ;
   \item State Terraform local ;
   \item Tests CI encore majoritairement SQLite ;
+  \item Monitoring complet (kube-prometheus) non exécuté dans le job CI minikube (RAM) — preuve en démo locale ;
   \item Identifiants de démo à renforcer en production réelle.
 \end{itemize}
 
@@ -31,9 +33,10 @@ Le projet \stockflow{} démontre qu'une application métier de gestion de stock 
   \item Haute disponibilité multi-nœuds ;
   \item GitOps (Flux / Argo CD) ;
   \item Tests e2e post-déploiement ;
-  \item Notifications sur alertes stock.
+  \item Notifications sur alertes stock ;
+  \item Déploiement VPS stabilisé si ressources matérielles suffisantes.
 \end{enumerate}
 
 \section{Mot de fin}
 
-\stockflow{} illustre l'unification code applicatif et infrastructure dans un même dépôt, avec une séparation claire entre machine de développement et VPS de production dédié.
+\stockflow{} illustre l'unification code applicatif et infrastructure dans un même dépôt, avec deux chemins de validation complémentaires — Docker Compose pour le développement, minikube pour l'orchestration — et une CI qui garantit la reproductibilité du déploiement Helm.

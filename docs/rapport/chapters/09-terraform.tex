@@ -3,15 +3,11 @@
 
 \section{Objectifs de Terraform dans StockFlow}
 
-Terraform décrit l'infrastructure de façon \textbf{déclarative} et \textbf{idempotente}. Dans ce projet, il provisionne la \textbf{plateforme Kubernetes} sur le VPS PFA (bootstrap unique) :
-\begin{enumerate}
-  \item ingress-nginx et cert-manager (TLS Let's Encrypt) ;
-  \item kube-prometheus-stack (Prometheus + Grafana) ;
-  \item pgAdmin et Kubernetes Dashboard ;
-  \item dashboard Grafana applicatif via ConfigMap.
-\end{enumerate}
+Terraform décrit l'infrastructure de façon \textbf{déclarative} et \textbf{idempotente}. Dans ce projet, le répertoire \texttt{infrastructure/terraform/} documente la \textbf{plateforme Kubernetes} (ingress, monitoring, outils) pour un déploiement VPS optionnel.
 
-Le chart applicatif \texttt{pfa-stock} est déployé par GitHub Actions (\texttt{deploy.yml}), pas par Terraform.
+Pour la \textbf{validation du PFA}, le bootstrap local repose sur les scripts minikube (\texttt{scripts/demarrer-cluster-minikube.sh}) qui reproduisent la même logique Helm sans \texttt{terraform apply} sur la machine de démo.
+
+Le chart applicatif \texttt{pfa-stock} est déployé par Helm (CI minikube ou \texttt{deploy.yml} manuel), pas par Terraform.
 
 \section{Providers}
 
@@ -22,7 +18,7 @@ Le chart applicatif \texttt{pfa-stock} est déployé par GitHub Actions (\texttt
 \texttt{variables.tf} expose notamment :
 \begin{itemize}
   \item \texttt{grafana\_host}, \texttt{pgadmin\_host}, \texttt{dashboard\_host} ;
-  \item \texttt{acme\_email} pour Let's Encrypt ;
+  \item \texttt{acme\_email} pour Let's Encrypt (VPS) ;
   \item \texttt{grafana\_admin\_password}, \texttt{pgadmin\_password} (sensibles) ;
   \item \texttt{postgres\_password} (aligné avec le secret GitHub \texttt{POSTGRES\_PASSWORD}).
 \end{itemize}
@@ -35,13 +31,13 @@ Crée les namespaces : \texttt{ingress-nginx}, \texttt{cert-manager}, \texttt{mo
 
 \subsection{\texttt{cert-manager.tf}}
 
-Release Helm \texttt{cert-manager} et \texttt{ClusterIssuer} \texttt{letsencrypt-prod} (HTTP-01 via ingress nginx).
+Release Helm \texttt{cert-manager} et \texttt{ClusterIssuer} \texttt{letsencrypt-prod} (HTTP-01 via ingress nginx) — pertinent pour le VPS, pas pour minikube.
 
 \subsection{\texttt{helm.tf}}
 
 \begin{table}[htbp]
   \centering
-  \caption{Releases Helm gérées par Terraform}
+  \caption{Releases Helm gérées par Terraform (VPS optionnel)}
   \label{tab:helm-tf}
   \begin{tabular}{@{}lll@{}}
     \toprule
@@ -55,26 +51,51 @@ Release Helm \texttt{cert-manager} et \texttt{ClusterIssuer} \texttt{letsencrypt
   \end{tabular}
 \end{table}
 
-Values ingress : \texttt{values/ingress-nginx-vps.yaml} (pas de hostPort, Service LoadBalancer).
+Values ingress VPS : \texttt{values/ingress-nginx-vps.yaml}. En local, l'addon minikube \texttt{ingress} ou les values \texttt{values-minikube.yaml} suffisent.
 
 \subsection{\texttt{grafana\_dashboard.tf}}
 
-ConfigMap du dashboard JSON \texttt{pfa-stock-api} pour le sidecar Grafana.
+ConfigMap du dashboard JSON \texttt{pfa-stock-api} pour le sidecar Grafana. Le script minikube applique le même manifeste via \texttt{kubectl apply}.
 
 \section{Exécution opérationnelle}
 
+\subsection{Validation (CI et local)}
+
 \begin{lstlisting}[style=bash]
 cd infrastructure/terraform
+terraform init -backend=false
+terraform fmt -check
+terraform validate
+\end{lstlisting}
+
+Le job \texttt{terraform} de la CI exécute ces commandes. Aucun \texttt{apply} sur les runners GitHub.
+
+\subsection{Apply production (optionnel)}
+
+\begin{lstlisting}[style=bash]
 terraform init
 terraform apply -var="grafana_admin_password=..." -var="pgadmin_password=..."
 \end{lstlisting}
 
-À exécuter depuis une machine dont le \texttt{KUBECONFIG} cible le \textbf{VPS PFA dédié} (voir \texttt{docs/vps-setup.md}). Le state reste local (\texttt{terraform.tfstate}, gitignoré).
+À exécuter depuis une machine dont le \texttt{KUBECONFIG} cible un VPS k3s (voir \texttt{docs/vps-setup.md}). Le state reste local (\texttt{terraform.tfstate}, gitignoré).
 
-\section{Validation en CI}
+\section{Terraform vs scripts minikube}
 
-Le job \texttt{terraform} : \texttt{init -backend=false}, \texttt{fmt -check}, \texttt{validate}. Aucun \texttt{apply} sur les runners GitHub.
+\begin{table}[htbp]
+  \centering
+  \caption{Terraform vs bootstrap minikube}
+  \label{tab:tf-vs-minikube}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    \textbf{Composant} & \textbf{Terraform (VPS)} & \textbf{Script minikube} \\
+    \midrule
+    Ingress & ingress-nginx Helm & addon \texttt{ingress} \\
+    Monitoring & kube-prometheus-stack & \texttt{kube-prometheus-values-minikube.yaml} \\
+    Dashboard K8s & Helm release & tarball GitHub + values minikube \\
+    App & — & \texttt{helm upgrade pfa-stock} \\
+    Validation CI & \texttt{validate} & job \texttt{kubernetes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-\section{Isolation Coolify}
-
-Le VPS hébergeant Coolify (production client) n'est \textbf{jamais} ciblé par ce Terraform. Seul le VPS PFA reçoit k3s et ces releases.
+Voir \texttt{infrastructure/terraform/README.md} et \texttt{docs/demo-soutenance.md}.

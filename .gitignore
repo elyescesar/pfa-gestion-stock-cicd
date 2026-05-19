@@ -19,12 +19,9 @@ frontend/dist/
 .terraform.lock.hcl
 kubeconfig
 .kube/
-kind-config
 .DS_Store
 coverage/
 htmlcov/
 *.log
 .idea/
 .vscode/
-
-docs/ci-cd-guide-perso.md

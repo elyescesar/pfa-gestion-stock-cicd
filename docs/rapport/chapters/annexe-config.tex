@@ -20,11 +20,11 @@
   \end{tabular}
 \end{table}
 
-\section{Secrets GitHub Actions (production)}
+\section{Secrets GitHub Actions (production optionnelle)}
 
 \begin{table}[htbp]
   \centering
-  \caption{Secrets repository pour \texttt{deploy.yml}}
+  \caption{Secrets repository pour \texttt{deploy.yml} (déclenchement manuel)}
   \small
   \begin{tabular}{@{}lp{8cm}@{}}
     \toprule
@@ -49,7 +49,8 @@
     Python & 3.12 \\
     Node.js & 20 \\
     PostgreSQL & 16 \\
-    k3s & latest \\
+    minikube & latest (driver Docker) \\
+    k3s & latest (VPS optionnel) \\
     Helm chart ingress-nginx & 4.11.3 \\
     cert-manager & v1.16.2 \\
     kube-prometheus-stack & 65.5.0 \\
@@ -60,9 +61,13 @@
 \section{Fichiers de référence rapide}
 
 \begin{itemize}
-  \item CI : \texttt{.github/workflows/ci.yml}
-  \item CD : \texttt{.github/workflows/deploy.yml}
-  \item Compose dev : \texttt{docker/compose.dev.yml}
+  \item Guide soutenance : \texttt{docs/demo-soutenance.md}
+  \item CI : \texttt{.github/workflows/ci.yml} (6 jobs, dont \texttt{kubernetes})
+  \item CD optionnel : \texttt{.github/workflows/deploy.yml} (\texttt{workflow\_dispatch})
+  \item Compose dev : \texttt{docker/compose.dev.yml} (Adminer :8080)
+  \item Chart minikube : \texttt{helm/pfa-stock/values-minikube.yaml}
   \item Chart prod : \texttt{helm/pfa-stock/values-prod.yaml}
-  \item Guide VPS : \texttt{docs/vps-setup.md}
+  \item Bootstrap K8s local : \texttt{scripts/demarrer-cluster-minikube.sh}
+  \item Terraform : \texttt{infrastructure/terraform/README.md}
+  \item Guide VPS (annexe) : \texttt{docs/vps-setup.md}
 \end{itemize}

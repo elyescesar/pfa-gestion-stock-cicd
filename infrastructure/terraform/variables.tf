@@ -1,19 +1,7 @@
 variable "kubeconfig_path" {
   type        = string
   default     = null
-  description = "Chemin vers kubeconfig VPS (ex. ~/k3s-pfa.yaml). Requis si ~/.kube/config n'existe pas. Ou: ln -sf ~/k3s-pfa.yaml ~/.kube/config"
-}
-
-variable "coolify_coexist" {
-  type        = bool
-  default     = true
-  description = "true = même VPS que Coolify : ingress NodePort 30080, pas de cert-manager (TLS via Coolify). false = VPS dédié : LoadBalancer + cert-manager."
-}
-
-variable "ingress_http_node_port" {
-  type        = number
-  default     = 30080
-  description = "NodePort HTTP ingress-nginx quand coolify_coexist = true."
+  description = "Chemin vers kubeconfig VPS (ex. ~/k3s.yaml). Ou: ln -sf ~/k3s.yaml ~/.kube/config"
 }
 
 variable "namespace_app" {

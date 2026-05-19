@@ -26,15 +26,18 @@ Aucune modification manuelle par route n'est nécessaire pour les métriques HTT
 
 \section{kube-prometheus-stack}
 
-Terraform installe le chart communautaire \texttt{kube-prometheus-stack} (version 65.5.0) avec des values dans \texttt{monitoring/kube-prometheus-values.yaml} :
+\subsection{Démo locale (minikube)}
 
+Le script \texttt{demarrer-cluster-minikube.sh} installe le chart \texttt{kube-prometheus-stack} avec \texttt{monitoring/kube-prometheus-values-minikube.yaml} :
 \begin{itemize}
-  \item \textbf{Grafana} activé, mot de passe admin via \texttt{set\_sensitive} Terraform ;
-  \item \textbf{sidecar dashboards} — surveille les ConfigMaps labellisées \texttt{grafana\_dashboard: "1"} dans tous les namespaces ;
-  \item \textbf{Prometheus} — rétention 1 jour, ressources limitées pour VPS ;
-  \item composants control-plane désactivés pour alléger le cluster ;
-  \item \textbf{Grafana} exposé sur \texttt{grafana.pfa.elyes.dev} avec TLS (ingress + cert-manager).
+  \item ressources réduites (Alertmanager désactivé, rétention courte) ;
+  \item Grafana accessible via ingress \texttt{grafana.test} ou \texttt{minikube service} ;
+  \item sidecar dashboards — surveille les ConfigMaps \texttt{grafana\_dashboard: "1"}.
 \end{itemize}
+
+\subsection{Production optionnelle (VPS)}
+
+Terraform peut installer le même chart avec \texttt{monitoring/kube-prometheus-values.yaml} et TLS sur \texttt{grafana.pfa.elyes.dev}.
 
 \section{ServiceMonitor}
 
@@ -81,16 +84,25 @@ Le fichier \texttt{monitoring/dashboards/pfa-stock-api.json} définit le tableau
   \item requêtes en cours.
 \end{itemize}
 
-Terraform injecte ce JSON en ConfigMap ; le sidecar Grafana le charge automatiquement — le dashboard est \textbf{versionné comme le code}.
+Le manifeste ConfigMap est appliqué par le script minikube (ou Terraform sur VPS) ; le sidecar Grafana charge le dashboard — versionné comme le code.
 
 \section{Accès opérationnel}
 
-Grafana est accessible en production sur \texttt{https://grafana.pfa.elyes.dev} (identifiants définis au \texttt{terraform apply}).
+\subsection{Démo soutenance (minikube)}
 
-\section{Mode développement}
+\begin{itemize}
+  \item Grafana : \texttt{http://grafana.test} (entrée \texttt{/etc/hosts} vers \texttt{minikube ip}) ou port-forward affiché par \texttt{make cluster} ;
+  \item identifiants : admin / mot de passe défini dans \texttt{kube-prometheus-values-minikube.yaml}.
+\end{itemize}
 
-En \texttt{make dev}, Prometheus/Grafana ne sont pas déployés par défaut. Les métriques restent accessibles sur \texttt{http://localhost:8000/metrics} pour curl ou un Prometheus local ad hoc.
+\subsection{Production optionnelle}
+
+Grafana sur \texttt{https://grafana.pfa.elyes.dev} après \texttt{terraform apply} sur VPS.
+
+\section{Mode développement Compose}
+
+En \texttt{make dev}, Prometheus/Grafana ne sont pas déployés. Les métriques restent accessibles sur \texttt{http://localhost:8000/metrics}. Adminer (\texttt{http://localhost:8080}) couvre la visualisation PostgreSQL sur ce chemin.
 
 \section{Alerting}
 
-Alertmanager est inclus dans kube-prometheus-stack mais les règles d'alerte custom (stock critique, API down prolongé) ne sont pas configurées dans le périmètre actuel — extension naturelle pour une phase ultérieure.
+Alertmanager est inclus dans kube-prometheus-stack mais désactivé en minikube pour économiser la RAM. Les règles d'alerte custom (stock critique, API down prolongé) ne sont pas configurées — extension naturelle pour une phase ultérieure.

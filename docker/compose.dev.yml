@@ -58,6 +58,20 @@ services:
     networks:
       - pfa
 
+  adminer:
+    image: adminer:4
+    container_name: pfa-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pfa
+
 volumes:
   donnees_pg:
 

@@ -1,48 +1,45 @@
 \chapter{Kubernetes et Helm}
 \label{ch:k8s}
 
-\section{Kubernetes en production (k3s)}
+\section{Kubernetes avec minikube}
 
 \subsection{Principe}
 
-\textbf{Kubernetes} orchestre des conteneurs sur un cluster : scheduling, réseau, stockage, auto-healing via sondes. En production, le projet utilise \textbf{k3s} sur un \textbf{VPS dédié} (séparé de tout serveur Coolify client) : distribution légère, adaptée à un nœud unique, avec ServiceLB pour exposer ingress-nginx sur les ports~80 et~443.
+\textbf{Kubernetes} orchestre des conteneurs sur un cluster : scheduling, réseau, stockage, auto-healing via sondes. Pour la \textbf{validation du PFA}, le projet utilise \textbf{minikube} (driver Docker) : cluster local reproductible, addon ingress, déploiement Helm identique au job CI \texttt{kubernetes}.
 
-\subsection{Installation}
-
-k3s est installé avec Traefik désactivé (ingress-nginx est géré par Terraform) :
+\subsection{Démarrage}
 
 \begin{lstlisting}[style=bash]
-curl -sfL https://get.k3s.io | sh -s - - --disable traefik --write-kubeconfig-mode 644
+make prerequis-k8s
+make cluster          # scripts/demarrer-cluster-minikube.sh
+make demo-k8s         # cluster + smoke test in-cluster
 \end{lstlisting}
 
-Le guide opérationnel \texttt{docs/vps-setup.md} détaille DNS, pare-feu, secrets GitHub et bootstrap.
+Le guide \texttt{docs/demo-soutenance.md} détaille les entrées \texttt{/etc/hosts}, l'accès Grafana et \texttt{minikube dashboard}.
 
-\section{Namespaces}
+\subsection{Production optionnelle (VPS k3s)}
 
-Terraform crée les namespaces (\texttt{kubernetes.tf}) :
+Un déploiement sur VPS (\texttt{docs/vps-setup.md}, \texttt{deploy.yml} manuel) reste documenté mais hors périmètre de la soutenance.
+
+\section{Namespaces (minikube)}
+
+Les scripts créent notamment :
 \begin{itemize}
-  \item \texttt{ingress-nginx} — contrôleur Ingress ;
-  \item \texttt{cert-manager} — certificats TLS Let's Encrypt ;
   \item \texttt{monitoring} — kube-prometheus-stack ;
   \item \texttt{pfa-stock} — application métier ;
-  \item \texttt{pgadmin} — administration PostgreSQL ;
-  \item \texttt{kubernetes-dashboard} — visualisation du cluster.
+  \item \texttt{kubernetes-dashboard} — visualisation du cluster ;
+  \item \texttt{pgadmin} — pgAdmin4 (visualisation BDD PostgreSQL du cluster).
 \end{itemize}
 
 \section{Chart Helm \texttt{pfa-stock}}
 
-\subsection{Métadonnées}
-
-\texttt{helm/pfa-stock/Chart.yaml} : chart version 1.0.0, application version 1.0.0.
-
 \subsection{Values}
 
 \begin{itemize}
-  \item \texttt{values.yaml} — valeurs par défaut (développement / lint) ;
-  \item \texttt{values-prod.yaml} — production : sous-domaines \texttt{pfa.elyes.dev} et \texttt{api.pfa.elyes.dev}, TLS via cert-manager, \texttt{imagePullSecrets} pour GHCR.
+  \item \texttt{values.yaml} — défauts (lint) ;
+  \item \texttt{values-minikube.yaml} — minikube et CI : \texttt{imagePullPolicy: Never}, hôtes \texttt{pfa.test} / \texttt{api.pfa.test} ;
+  \item \texttt{values-prod.yaml} — VPS optionnel (GHCR, sous-domaines publics).
 \end{itemize}
-
-Les tags d'images et les secrets sensibles sont injectés par le workflow \texttt{deploy.yml} (\texttt{--set}, \texttt{--set-string}).
 
 \subsection{Ressources déployées}
 
@@ -56,49 +53,34 @@ Les tags d'images et les secrets sensibles sont injectés par le workflow \textt
     \textbf{Template} & \textbf{Kind} & \textbf{Détail} \\
     \midrule
     \texttt{postgres.yaml} & StatefulSet + Service & Volume \texttt{1Gi}, image postgres:16-alpine \\
-    \texttt{api.yaml} & Deployment + Service & Env depuis Secret/ConfigMap, probes /health, ServiceMonitor \\
+    \texttt{api.yaml} & Deployment + Service & Probes /health, ServiceMonitor \\
     \texttt{web.yaml} & Deployment + Service & nginx, port 80 \\
-    \texttt{secret.yaml} & Secret & JWT, mot de passe PG, DATABASE\_URL \\
-    \texttt{configmap.yaml} & ConfigMap & CORS \\
-    \texttt{ingress.yaml} & Ingress (×2) & web et API sur hôtes distincts, TLS \\
+    \texttt{ingress.yaml} & Ingress (×2) & web et API sur hôtes distincts \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\subsection{Ingress et routage}
-
-Deux ressources Ingress séparent frontend et API :
-\begin{itemize}
-  \item \texttt{pfa.elyes.dev} → Service \texttt{web} (port 80) ;
-  \item \texttt{api.pfa.elyes.dev} → Service \texttt{api} (port 8000 en cluster uniquement, non exposé sur l'hôte).
-\end{itemize}
-
-Le frontend est construit avec \texttt{VITE\_API\_URL=https://api.pfa.elyes.dev} : les appels REST ciblent directement le sous-domaine API.
-
-Les annotations \texttt{cert-manager.io/cluster-issuer: letsencrypt-prod} provisionnent les certificats TLS.
-
-\subsection{Sondes et ServiceMonitor}
+\subsection{Ingress et routage (minikube)}
 
 \begin{itemize}
-  \item \texttt{startupProbe} et \texttt{livenessProbe} sur \texttt{/health} ;
-  \item \texttt{ServiceMonitor} pour Prometheus si \texttt{monitoring.enabled}.
+  \item \texttt{pfa.test} → Service \texttt{web} ;
+  \item \texttt{api.pfa.test} → Service \texttt{api}.
 \end{itemize}
 
-\section{ingress-nginx sur le VPS}
+Le frontend minikube est construit avec \texttt{VITE\_API\_URL=http://api.pfa.test}.
 
-\texttt{infrastructure/terraform/values/ingress-nginx-vps.yaml} configure le contrôleur avec \texttt{service.type: LoadBalancer} (k3s ServiceLB lie 80/443 sur le nœud), sans \texttt{hostPort} (contrairement à l'ancienne configuration kind).
+\section{Observabilité et outils sur le cluster}
 
-\section{Cycle de déploiement}
+\begin{itemize}
+  \item \textbf{kube-prometheus-stack} — Prometheus + Grafana (\texttt{grafana.test}) ;
+  \item \textbf{Kubernetes Dashboard} — \texttt{minikube dashboard} ou port-forward ;
+  \item \textbf{pgAdmin} — visualisation PostgreSQL du cluster (\texttt{pgadmin.test}) ; Adminer en Compose pour la démo Docker.
+\end{itemize}
+
+\section{Cycle de validation}
 
 \begin{enumerate}
-  \item Bootstrap unique : \texttt{terraform apply} (plateforme) ;
-  \item À chaque push sur \texttt{main} : build images → GHCR → \texttt{helm upgrade} (application).
+  \item \texttt{make cluster} — plateforme + application sur minikube ;
+  \item CI — minikube éphémère, \texttt{helm upgrade}, smoke \texttt{/health} in-cluster ;
+  \item Optionnel — \texttt{deploy.yml} vers VPS.
 \end{enumerate}
-
-\section{Sécurité et limites}
-
-\begin{itemize}
-  \item un seul nœud — pas de tolérance aux pannes matérielles ;
-  \item secrets production dans GitHub Actions et Kubernetes Secrets ;
-  \item ports hôte 8000, 6001, 6002 non utilisés (réservés ailleurs sur d'autres serveurs).
-\end{itemize}

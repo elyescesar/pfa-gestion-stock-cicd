@@ -3,51 +3,35 @@
 
 \section{Principes}
 
-Deux workflows complémentaires :
+Deux workflows :
 \begin{itemize}
-  \item \texttt{ci.yml} — validation (tests, lint, build, Terraform, Helm) ;
-  \item \texttt{deploy.yml} — déploiement production sur push \texttt{main} (images GHCR + \texttt{helm upgrade}).
+  \item \texttt{ci.yml} — validation complète (tests, build, Terraform, Helm, \textbf{minikube}) ;
+  \item \texttt{deploy.yml} — déploiement VPS \textbf{optionnel} (\texttt{workflow\_dispatch} uniquement).
 \end{itemize}
 
 \section{Déclencheurs}
 
 \begin{itemize}
   \item CI : \texttt{push} sur \texttt{main}/\texttt{develop}, \texttt{pull\_request} vers \texttt{main} ;
-  \item CD : \texttt{push} sur \texttt{main}, \texttt{workflow\_dispatch}.
+  \item CD : \texttt{workflow\_dispatch} seulement (pas de déploiement auto sur push).
 \end{itemize}
 
 \section{Pipeline CI}
 
-Cinq jobs parallèles : \texttt{backend}, \texttt{frontend}, \texttt{docker}, \texttt{terraform}, \texttt{helm}. Le job \texttt{kubernetes} (kind) a été retiré — la validation Helm utilise \texttt{values-prod.yaml}.
+Six jobs : \texttt{backend}, \texttt{frontend}, \texttt{docker}, \texttt{terraform}, \texttt{helm}, \texttt{kubernetes}.
 
-\section{Pipeline CD (\texttt{deploy.yml})}
-
+Le job \texttt{kubernetes} :
 \begin{enumerate}
-  \item Build et push \texttt{ghcr.io/<owner>/pfa-stock-api} et \texttt{pfa-stock-web} (tag = SHA du commit) ;
-  \item \texttt{VITE\_API\_URL=https://api.pfa.elyes.dev} pour le build frontend ;
-  \item Configuration du kubeconfig depuis le secret \texttt{KUBECONFIG} ;
-  \item \texttt{helm upgrade --install} avec \texttt{values-prod.yaml} et secrets (\texttt{SECRET\_JWT}, \texttt{POSTGRES\_PASSWORD}) ;
-  \item Smoke test : \texttt{curl https://api.pfa.elyes.dev/health}.
+  \item démarre minikube (driver Docker) ;
+  \item build et \texttt{minikube image load} des images API/Web ;
+  \item active l'addon ingress ;
+  \item \texttt{helm upgrade --install pfa-stock} avec \texttt{values-minikube.yaml} ;
+  \item smoke test in-cluster : \texttt{curl http://api:8000/health}.
 \end{enumerate}
 
-\section{Secrets GitHub requis}
+\section{Pipeline CD optionnel (\texttt{deploy.yml})}
 
-\begin{table}[htbp]
-  \centering
-  \caption{Secrets pour le déploiement production}
-  \label{tab:gh-secrets}
-  \begin{tabular}{@{}lp{8cm}@{}}
-    \toprule
-    \textbf{Secret} & \textbf{Usage} \\
-    \midrule
-    \texttt{KUBECONFIG} & Accès cluster k3s (base64) \\
-    \texttt{SECRET\_JWT} & Signature JWT production \\
-    \texttt{POSTGRES\_PASSWORD} & Base PostgreSQL \\
-    \texttt{GHCR\_PAT} & Pull images privées (optionnel) \\
-    \texttt{GITHUB\_TOKEN} & Push images (fourni par Actions) \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+Déclenchement manuel : build GHCR, \texttt{helm upgrade} sur VPS (\texttt{values-prod.yaml}), smoke in-cluster et HTTPS public (\texttt{continue-on-error}).
 
 \section{Comparaison CI vs local}
 
@@ -57,16 +41,17 @@ Cinq jobs parallèles : \texttt{backend}, \texttt{frontend}, \texttt{docker}, \t
   \label{tab:ci-vs-make}
   \begin{tabular}{@{}lcc@{}}
     \toprule
-    \textbf{Vérification} & \textbf{CI} & \texttt{make test} \\
+    \textbf{Vérification} & \textbf{CI} & \texttt{make} \\
     \midrule
-    pytest / vitest & Oui & Oui \\
-    docker build & Oui & Non \\
-    terraform / helm & Oui & Non \\
-    déploiement VPS & \texttt{deploy.yml} & Non \\
+    pytest / vitest & Oui & \texttt{make test} \\
+    docker build & Oui & \texttt{make dev} \\
+    terraform / helm & Oui & — \\
+    minikube deploy & Oui & \texttt{make cluster} \\
+    Grafana / dashboard & Démo locale & \texttt{make cluster} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \section{Gouvernance}
 
-Les PR doivent passer la CI avant merge. Le déploiement production est déclenché uniquement après intégration sur \texttt{main}, limitant les déploiements accidentels.
+Les PR doivent passer la CI avant merge. La validation PFA repose sur la CI et la démo locale (\texttt{docs/demo-soutenance.md}), sans serveur de production obligatoire.

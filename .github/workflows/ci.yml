@@ -77,4 +77,47 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - run: helm lint helm/pfa-stock
+      - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-minikube.yaml > /dev/null
       - run: helm template pfa-stock helm/pfa-stock -f helm/pfa-stock/values-prod.yaml > /dev/null
+
+  kubernetes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minikube
+        run: |
+          curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube /usr/local/bin/minikube
+          minikube start --driver=docker --cpus=2 --memory=4096 --profile=ci \
+            --dns-proxy=false \
+            --extra-config=kubelet.resolv-conf=/etc/resolv.conf
+
+      - uses: azure/setup-helm@v4
+
+      - name: Install ingress-nginx (Helm)
+        run: |
+          source scripts/lib-minikube.sh
+          fix_minikube_dns ci
+          install_ingress_nginx ci "$PWD"
+
+      - name: Build app images in minikube docker
+        run: |
+          source scripts/lib-minikube.sh
+          build_app_images_minikube ci "$PWD"
+
+      - name: Deploy pfa-stock on minikube
+        run: |
+          helm upgrade --install pfa-stock ./helm/pfa-stock \
+            --namespace pfa-stock \
+            --create-namespace \
+            -f helm/pfa-stock/values-minikube.yaml \
+            --wait --timeout 10m
+
+      - name: Smoke test API (in-cluster)
+        run: |
+          kubectl rollout status deployment/api -n pfa-stock --timeout=5m
+          kubectl run smoke-api-ci --rm -i --restart=Never -n pfa-stock \
+            --image=curlimages/curl:8.10.1 \
+            --command -- curl -sf "http://api:8000/health"
+          echo "In-cluster /health OK"

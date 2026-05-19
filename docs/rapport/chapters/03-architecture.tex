@@ -27,11 +27,15 @@ L'architecture suit un modèle en couches classique, enrichi d'une couche d'obse
 
 \subsection{Mode développement (Docker Compose)}
 
-Le fichier \texttt{docker/compose.dev.yml} définit un réseau bridge \texttt{pfa} reliant postgres, api et web. Ports publiés : 3000 (UI), 8000 (API), 5432 (PostgreSQL).
+Le fichier \texttt{docker/compose.dev.yml} définit un réseau bridge \texttt{pfa} reliant postgres, api, web et \textbf{Adminer} (visualisation BDD, port~8080). Ports publiés : 3000 (UI), 8000 (API), 5432 (PostgreSQL), 8080 (Adminer).
 
-\subsection{Mode production (k3s sur VPS dédié)}
+\subsection{Mode validation Kubernetes (minikube)}
 
-Le cluster k3s tourne sur un \textbf{VPS réservé au PFA}, distinct de tout serveur hébergeant Coolify ou d'autres clients. ingress-nginx expose HTTPS sur les ports~80/443 ; cert-manager émet les certificats Let's Encrypt pour \texttt{*.pfa.elyes.dev}.
+Le cluster \textbf{minikube} (profil \texttt{pfa}) est provisionné par \texttt{make cluster} : addon ingress, kube-prometheus-stack, pgAdmin, dashboard Kubernetes, chart Helm \texttt{pfa-stock} (\texttt{values-minikube.yaml}). Les hôtes \texttt{pfa.test}, \texttt{api.pfa.test}, \texttt{grafana.test} et \texttt{pgadmin.test} sont mappés via \texttt{/etc/hosts} sur l'IP minikube.
+
+\subsection{Production optionnelle (VPS k3s)}
+
+Un déploiement sur VPS reste documenté (\texttt{docs/vps-setup.md}, workflow \texttt{deploy.yml} manuel) mais n'est pas requis pour la validation du PFA.
 
 \begin{figure}[htbp]
   \centering
@@ -42,11 +46,11 @@ Le cluster k3s tourne sur un \textbf{VPS réservé au PFA}, distinct de tout ser
     \draw[line] (ing) -- (app);
     \draw[dashedline] (app.east) -- node[above, font=\footnotesize] {métriques} (mon.west);
   \end{tikzpicture}
-  \caption{Déploiement Kubernetes production (vue simplifiée)}
+  \caption{Déploiement minikube (vue simplifiée)}
   \label{fig:k8s}
 \end{figure}
 
-Terraform installe la plateforme (ingress, cert-manager, monitoring, pgAdmin, dashboard) ; GitHub Actions déploie le chart applicatif à chaque merge sur \texttt{main}.
+Les scripts \texttt{demarrer-cluster-minikube.sh} installent la plateforme ; le job CI \texttt{kubernetes} reproduit le déploiement Helm sur un minikube éphémère.
 
 \section{Flux de données principaux}
 
@@ -64,7 +68,7 @@ Le service \texttt{gestion\_stock.py} encapsule la logique transactionnelle (cha
 
 \subsection{Observabilité}
 
-L'instrumentateur Prometheus expose \texttt{/metrics}. En production, Grafana est accessible sur \texttt{grafana.pfa.elyes.dev}.
+L'instrumentateur Prometheus expose \texttt{/metrics}. Sur minikube, Grafana est accessible sur \texttt{http://grafana.test} (après entrée \texttt{/etc/hosts}).
 
 \section{Chaîne d'outillage DevOps}
 
@@ -75,14 +79,14 @@ L'instrumentateur Prometheus expose \texttt{/metrics}. En production, Grafana es
     \node[block, minimum width=2.8cm, right=1.1cm of git] (ci) {GitHub Actions\\CI + CD};
     \node[block, minimum width=2.8cm, right=1.1cm of ci] (ghcr) {GHCR};
     \node[block, minimum width=2.8cm, below=1cm of ghcr] (helm) {Helm};
-    \node[block, minimum width=2.8cm, left=1.1cm of helm] (k3s) {k3s VPS};
+    \node[block, minimum width=2.8cm, left=1.1cm of helm] (mk) {minikube};
 
     \draw[line] (git) -- (ci);
     \draw[line] (ci) -- (ghcr);
     \draw[line] (ghcr) -- (helm);
-    \draw[line] (helm) -- (k3s);
+    \draw[line] (helm) -- (mk);
   \end{tikzpicture}
-  \caption{Chaîne d'outillage (validation, images, déploiement production)}
+  \caption{Chaîne d'outillage (validation CI + démo minikube)}
   \label{fig:devops-chain}
 \end{figure}
 
@@ -99,9 +103,9 @@ L'instrumentateur Prometheus expose \texttt{/metrics}. En production, Grafana es
     API stateless & Scaling horizontal des pods API ; session portée par JWT. \\
     Frontend statique (nginx) & Surface d'attaque réduite en cluster. \\
     PostgreSQL relationnel & Transactions ACID pour les mouvements. \\
-    VPS k3s dédié & Production réelle sans interférer avec Coolify ou autres stacks. \\
-    GHCR + Helm CD & Images versionnées par commit ; déploiement reproductible. \\
-    cert-manager & TLS automatique sur sous-domaines publics. \\
+    minikube + Helm & Validation K8s locale et en CI sans VPS dédié. \\
+    GHCR + Helm (optionnel) & Images versionnées ; déploiement VPS manuel. \\
+    kube-prometheus-stack & Observabilité (Grafana, ServiceMonitor). \\
     \bottomrule
   \end{tabularx}
 \end{table}

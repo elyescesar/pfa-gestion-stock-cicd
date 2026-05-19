@@ -80,17 +80,15 @@ Les objectifs techniques déclinés dans l'implémentation sont :
 
 \begin{enumerate}
   \item \textbf{Séparation des couches} : frontend statique, API stateless, base PostgreSQL.
-  \item \textbf{Deux chemins de déploiement} : Compose local (\texttt{make dev}) et k3s sur VPS dédié (CD GitHub Actions).
-  \item \textbf{Automatisation} : \texttt{make demo} en local ; push sur \texttt{main} pour la production.
-  \item \textbf{Qualité logicielle} : tests, lint, smoke tests (\texttt{make verify}).
-  \item \textbf{Isolation production} : VPS PFA séparé de tout hébergement Coolify client.
+  \item \textbf{Deux chemins de démonstration} : Compose local (\texttt{make dev}) et minikube (\texttt{make cluster}) avec le même chart Helm qu'en CI.
+  \item \textbf{Automatisation} : \texttt{make demo} en local ; CI sur chaque push/PR.
 \end{enumerate}
 
 \section{Hors périmètre}
 
 Les éléments suivants sont explicitement hors périmètre de la version documentée :
 \begin{itemize}
-  \item déploiement continu automatique vers un environnement distant (pas de \texttt{helm upgrade} en CI) ;
+  \item déploiement production VPS automatique (workflow \texttt{deploy.yml} manuel uniquement) ;
   \item haute disponibilité multi-nœuds, autoscaling horizontal, TLS terminé par certificats réels ;
   \item gestion fine des permissions au-delà de deux rôles ;
   \item application mobile native ou mode hors-ligne.
